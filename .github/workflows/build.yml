@@ -3,9 +3,16 @@ name: Build APK
 on:
   push:
     branches: [ main, feature/local-tcp, feature/android-only ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional release tag (vX.Y.Z); leave blank for build only. Publish from main.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -14,11 +21,45 @@ jobs:
   apk:
     name: Build WebScreen APK (arm64)
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release_meta.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Validate release request
+        id: release_meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag=""
+          if [[ "$EVENT_NAME" == push && "$REF_TYPE" == tag ]]; then
+            tag="$REF_NAME"
+          elif [[ "$EVENT_NAME" == workflow_dispatch && -n "$REQUESTED_TAG" ]]; then
+            if [[ "$REF_TYPE" != branch || "$REF_NAME" != main ]]; then
+              echo "::error::Manual releases must be dispatched from main"
+              exit 1
+            fi
+            tag="$REQUESTED_TAG"
+          fi
+          if [[ -n "$tag" ]]; then
+            if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Release tag must be vX.Y.Z"
+              exit 1
+            fi
+            git fetch --no-tags origin main
+            git merge-base --is-ancestor HEAD FETCH_HEAD || {
+              echo "::error::Release commit must be in main history"
+              exit 1
+            }
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Check TCP playback JavaScript
         run: |
@@ -105,9 +146,75 @@ jobs:
           echo "APK bytes: $(stat -c%s WebScreen-debug.apk)" >> "$GITHUB_STEP_SUMMARY"
           unzip -l WebScreen-debug.apk | grep -E "libwebscreen|classes.dex" || true
 
+      - name: Verify release APK version
+        if: steps.release_meta.outputs.tag != ''
+        env:
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          badging="$("$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging WebScreen-debug.apk)"
+          version="$(sed -n "s/^package: .*versionName='\([^']*\)'.*/\1/p" <<< "$badging")"
+          if [[ "v$version" != "$RELEASE_TAG" ]]; then
+            echo "::error::APK versionName '$version' does not match '$RELEASE_TAG'"
+            exit 1
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: WebScreen-debug
           path: WebScreen-debug.apk
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: apk
+    if: needs.apk.outputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ needs.apk.outputs.release_tag }}
+      cancel-in-progress: false
+    steps:
+      - name: Download verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: WebScreen-debug
+
+      - name: Publish versioned APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.apk.outputs.release_tag }}
+          RELEASE_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          apk="WebScrcpy-${RELEASE_TAG}-android-arm64.apk"
+          mv WebScreen-debug.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+
+          # Never replace an existing release.
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists"
+            exit 1
+          fi
+
+          # A manual dispatch creates a lightweight tag after CI succeeds.
+          # The workflow token does not trigger a second tag-push workflow.
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            if existing="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq '.object.type + ":" + .object.sha' 2>/dev/null)"; then
+              if [[ "$existing" != "commit:$RELEASE_SHA" ]]; then
+                echo "::error::Existing tag does not point to this build"
+                exit 1
+              fi
+            else
+              gh api --method POST "repos/$GH_REPO/git/refs" \
+                -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$RELEASE_SHA"
+            fi
+          fi
+
+          gh release create "$RELEASE_TAG" "$apk" "$apk.sha256" \
+            --verify-tag --title "WebScrcpy $RELEASE_TAG" --generate-notes \
+            --notes "Android arm64 debug APK, signed with the public CI test key for compatibility with previous CI builds. Use only on trusted networks."
