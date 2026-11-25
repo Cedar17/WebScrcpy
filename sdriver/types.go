@@ -1,6 +1,5 @@
 package sdriver
 
-// type DriverConfig map[string]string
 type ConfigParamDescription struct {
 	Name     string   `json:"name"`
 	Type     string   `json:"type"`

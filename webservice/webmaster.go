@@ -13,10 +13,8 @@ import (
 
 type WebMaster struct {
 
-
 	tcpMu sync.Mutex
 	tcpSessions map[string]*tcpSession
-
 
 	pin                  string
 	UnlockAttemptRecords map[string]UnlockAttemptRecord
@@ -37,12 +35,7 @@ func New(staticFS fs.FS) *WebMaster {
 	return wm
 }
 
-func Default(staticFS fs.FS) *WebMaster {
-	return New(staticFS)
-}
-
 func (wm *WebMaster) setRouter() {
-	// gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	// Periodic local readiness checks must not flood the Android UI log.
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/healthz"}}), gin.Recovery())
@@ -90,9 +83,6 @@ func (wm *WebMaster) setRouter() {
 		api.GET("/device/list", wm.handleListDevices)
 		api.GET("/device/configDescription", wm.handleDeviceConfigDescription)
 
-
-
-
 		// 受控端背光（隐私保护：屏幕黑，但不锁屏，串流照常）
 		api.POST("/screen/backlight", wm.handleBacklight)
 	}
@@ -102,7 +92,6 @@ func (wm *WebMaster) setRouter() {
 
 func (wm *WebMaster) SetPIN(pin string) {
 	// Set the PIN for web access
-	// This is a placeholder implementation
 	log.Printf("PIN authentication enabled: %t", pin != "")
 	wm.pin = pin
 }
@@ -113,7 +102,4 @@ func (wm *WebMaster) Serve(host, port string) {
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-}
-
-func (wm *WebMaster) Close() {
 }

@@ -7,7 +7,5 @@
     <color name="accent_dim">#2F6E68</color>
     <color name="text_primary">#ECECEC</color>
     <color name="text_secondary">#9AA0A6</color>
-    <color name="ok">#6EC7AD</color>
-    <color name="warn">#D98B72</color>
     <color name="ic_launcher_background">#0F1B1A</color>
 </resources>

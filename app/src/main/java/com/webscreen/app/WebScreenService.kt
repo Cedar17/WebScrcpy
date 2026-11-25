@@ -11,7 +11,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.Proxy
@@ -485,5 +484,3 @@ class WebScreenService : Service() {
         }
     }
 }
-
-private fun File.isFile() = this.exists() && this.isFile

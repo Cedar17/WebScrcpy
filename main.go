@@ -41,13 +41,12 @@ func main() {
 	defer stop()
 
 	pub, _ := fs.Sub(publicFS, "public")
-	webMaster := webservice.Default(pub)
+	webMaster := webservice.New(pub)
 	webMaster.SetPIN(*pin)
 
 	go webMaster.Serve(*host, *port)
 
 	<-ctx.Done()
-	log.Println("Gracefully closing")
-	webMaster.Close()
+	log.Println("WebScrcpy stopping")
 
 }

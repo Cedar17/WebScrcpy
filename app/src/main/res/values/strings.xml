@@ -16,7 +16,6 @@
 
     <string name="label_port">端口</string>
     <string name="label_address">访问地址</string>
-    <string name="address_hint">%1$s</string>
     <string name="action_copy">复制地址</string>
     <string name="copied">已复制：%1$s</string>
 

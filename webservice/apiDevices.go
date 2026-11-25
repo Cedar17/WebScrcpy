@@ -4,6 +4,15 @@ import (
  sagent "webscreen/streamAgent"
  "github.com/gin-gonic/gin"
 )
+
+type DeviceInfo struct {
+	Type     string `json:"device_type"`
+	DeviceID string `json:"device_id"`
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	Status   string `json:"status"`
+}
+
 func (wm *WebMaster) handleListDevices(c *gin.Context) {
  c.JSON(200, gin.H{"devices": []DeviceInfo{{
  Type: sagent.DEVICE_TYPE_ANDROID, DeviceID: scrcpy.LocalDeviceName(),

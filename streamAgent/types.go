@@ -1,8 +1,6 @@
 package sagent
 
-const (
-	DEVICE_TYPE_ANDROID  string = "android"
-)
+const DEVICE_TYPE_ANDROID = "android"
 
 type AgentConfig struct {
 	DeviceType        string            `json:"device_type"`
@@ -12,16 +10,4 @@ type AgentConfig struct {
 	AVSync            bool              `json:"av_sync"`
 	UseLocalTimestamp bool              `json:"use_local_timestamp"`
 	DriverConfig      map[string]string `json:"driver_config"`
-}
-
-type ConfigParamDescription struct {
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	Default  any      `json:"default,omitempty"`
-	Options  []string `json:"options,omitempty"`
-	// if true, the frontend can show this config param more prominently, like in a badge or highlight it in the UI, to indicate it's important or commonly used.
-	Badge bool `json:"badge,omitempty"`
-
-	Description string `json:"description"`
 }

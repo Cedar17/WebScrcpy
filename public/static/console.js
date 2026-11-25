@@ -74,18 +74,6 @@ function formatBitrate(value) {
     return String(value);
 }
 
-function parseBitrate(str) {
-    if (!str) return 8000000;
-    const match = str.match(/^(\d+(?:\.\d+)?)\s*([KMG])?$/i);
-    if (!match) return 8000000;
-    let value = parseFloat(match[1]);
-    const unit = (match[2] || '').toUpperCase();
-    if (unit === 'K') value *= 1000;
-    else if (unit === 'M') value *= 1000000;
-    else if (unit === 'G') value *= 1000000000;
-    return Math.round(value);
-}
-
 // --- UI Rendering ---
 
 function renderDeviceList() {
@@ -112,7 +100,7 @@ function renderDeviceList() {
 
         // Construct config tags
         let tagsHtml = '';
-        let dtype = config.device_type === 'xvfb' ? 'linux' : config.device_type;
+        const dtype = config.device_type;
         const cacheKey = `${dtype}_${serial}`;
         
         const generateBadges = (schema, currentValues) => {
@@ -229,8 +217,7 @@ async function fetchDevices() {
         }
         for (const device of devices) {
             let activeConfigSerial = typeof device === 'string' ? device : device.device_id;
-            let dtype = device.device_type;
-            if (dtype === 'xvfb') dtype = 'linux';
+            const dtype = device.device_type;
             const cacheKey = `${dtype}_${activeConfigSerial}`;
             if (!schemaCache[cacheKey]) {
                 schemaPromises.push(
@@ -327,11 +314,6 @@ async function showConfigModal(serial) {
     if (universalContainer) universalContainer.innerHTML = `<div class="flex justify-center py-8"><div class="spinner"></div></div>`;
     openModal('configModal');
 
-    // For compatibility with older versions, treat 'xvfb' as 'linux' for config schema purposes
-    if (config.device_type === 'xvfb') {
-        config.device_type = 'linux';
-    }
-    
     try {
         const [resDyn, resUni] = await Promise.all([
             fetch(`/api/device/configDescription?device_type=${config.device_type}&device_id=${encodeURIComponent(device.device_id)}`),

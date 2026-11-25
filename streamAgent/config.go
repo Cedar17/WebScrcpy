@@ -1,8 +1,10 @@
 package sagent
 
-func ConfigDescription() []ConfigParamDescription {
+import "webscreen/sdriver"
 
-	return []ConfigParamDescription{
+func ConfigDescription() []sdriver.ConfigParamDescription {
+
+	return []sdriver.ConfigParamDescription{
 		{
 			Name:        "av_sync",
 			Type:        "boolean",

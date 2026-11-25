@@ -14,7 +14,7 @@
     <script src="/static/connect.js" defer></script>
     <script src="/static/fullscreen.js" defer></script>
     <script src="/static/screen.js" defer></script>
-    <!-- 黑屏（隐私保护）与硬件按键（音量/电源/返回等）：静态加载，不依赖 WebRTC
+    <!-- 黑屏（隐私保护）与硬件按键（音量/电源/返回等）：静态加载，不依赖运行时
          能力协商 —— 挂在 updateUIBasedOnCapabilities 里时，若该回调未触发（或链上
          前一个脚本加载失败），按钮就会存在但没有事件处理器，点了毫无反应。 -->
     <script src="/static/capabilities/backlight.js" defer></script>
@@ -98,9 +98,6 @@
                     <polyline points="16 21 12 21 12 17" />
                 </svg>
             </button>
-            <!-- <button onclick="getClipboard()" class="control-btn feature-clipboard" title="获取剪贴板 (Device -> Browser)" style="display: none;">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
-            </button> -->
             <button id="setClipboardButton"
                 class="control-btn feature-clipboard" data-i18n-title="set_clipboard" title="set clipboard (Browser -> Device)"
                 style="display: none;">
