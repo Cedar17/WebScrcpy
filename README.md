@@ -2,7 +2,7 @@
 
 在浏览器里查看并操控 Android 手机画面 —— 自托管、纯 TCP（HTTP / WebSocket），Android 侧基于 [scrcpy](https://github.com/Genymobile/scrcpy)。
 
-> `feature/local-tcp` 为实验性纯 TCP 分支：浏览器投屏不再依赖 WebRTC、ICE、STUN、TURN 或 UDP。当前正在进行 APK 构建和真机验证，不代表已完成全部功能验收。
+> `feature/local-tcp` 为实验性纯 TCP 分支：浏览器投屏不再依赖 WebRTC、ICE、STUN、TURN 或 UDP。1.2.15 原型已在 Redmi K40 实测 Wi-Fi 和移动网络 + ZJU Connect Android 可用；1.3.0 为低延迟优化测试版，性能仍待复测。
 
 > 本仓库是 [huonwe/webscreen](https://github.com/huonwe/webscreen) 的增强分支：**以保留上游界面及功能为目标**，并新增了下面这些能力。
 
@@ -103,6 +103,13 @@ docker compose up -d
 
 默认端口 `8079`，可用 `-port 8080` 指定；支持 6 位 PIN（`-pin 555555`，默认为空）。
 客户端需要支持 Media Source Extensions（MSE）及 H.264；H.265、Opus 音频取决于浏览器支持。前端播放器随 APK 打包，无需第三方服务。
+
+## v1.3.0 低延迟优化
+
+- SourceBuffer 更新完成后立即排空待提交视频数据。
+- 每 100 ms 检查播放缓冲，非 AV Sync 模式追帧目标 80 ms，开启 AV Sync 时为 180 ms；这些数值不是端到端延迟。
+- 压缩静态屏幕后的异常长帧时长；缩短音频追帧周期。
+- 保持原有界面、包名、测试签名、HTTP/WS 8079 端口和纯 TCP 架构。
 
 ## 构建纯 TCP 测试 APK
 

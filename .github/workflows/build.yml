@@ -20,6 +20,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check TCP playback JavaScript
+        run: |
+          node --check public/static/connect.js
+          node --check public/static/tcp-audio.js
+          node --check public/static/vendor/jmuxer.min.js
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

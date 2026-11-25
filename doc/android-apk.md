@@ -72,6 +72,10 @@ cp dist/webscreen-android-arm64 app/src/main/jniLibs/arm64-v8a/libwebscreen.so
 ./gradlew assembleDebug
 ```
 
+## v1.3.0 性能复测
+
+使用相同的设备、网络、编码器、分辨率、帧率与码率对比 1.2.15 和 1.3.0；重点检查连续滑动、静止后第一次操作、音频和重连。默认关闭 AV Sync 优先低延迟。保留旧 APK 用于回归对照。
+
 ## 安装 / 使用
 
 1. 安装 `WebScreen-debug.apk`（arm64 设备）。

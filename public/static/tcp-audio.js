@@ -88,7 +88,7 @@
                     this.drain();
                 } catch (e) { console.warn('[tcp audio]', e); this.destroy(); }
             },{once:true});
-            this.timer = setInterval(() => this.catchUp(),500);
+            this.timer = setInterval(() => this.catchUp(),200);
         }
         feed(packet, pts, config) {
             if (this.closed || !packet.length) return;
@@ -131,12 +131,12 @@
             } catch (e) { console.warn('[tcp audio append]',e); this.destroy(); }
         }
         catchUp() {
-            if (this.closed || !this.audio.buffered.length) return;
+            if (this.closed || this.audio.seeking || !this.audio.buffered.length) return;
             const end = this.audio.buffered.end(this.audio.buffered.length-1);
             const lag = end-this.audio.currentTime;
             const target = this.sync && this.video.buffered.length ?
-                Math.max(0.08,this.video.buffered.end(this.video.buffered.length-1)-this.video.currentTime) : 0.15;
-            if (lag > target+0.6) this.audio.currentTime = Math.max(this.audio.buffered.start(0),end-target);
+                Math.max(0.08,this.video.buffered.end(this.video.buffered.length-1)-this.video.currentTime) : 0.10;
+            if (lag > target+0.35) this.audio.currentTime = Math.max(this.audio.buffered.start(0),end-target);
             else this.audio.playbackRate = lag>target+0.12 ? 1.08 : 1;
         }
         destroy() {
