@@ -30,6 +30,10 @@ type Agent struct {
 	// WebSocket 回调
 	OnVideoFrame func([]byte)
 	OnAudioFrame func([]byte)
+	// Preserve scrcpy timestamps and codec configuration packets for TCP transport.
+	OnVideoBox func(sdriver.AVBox)
+	OnAudioBox func(sdriver.AVBox)
+	OnVideoEnd func()
 }
 
 // ========================
@@ -52,6 +56,9 @@ func New(config AgentConfig, videoTrack *webrtc.TrackLocalStaticRTP, audioTrack 
 const driverInitAttempts = 3
 
 func (sa *Agent) InitDriver(finalCodec webrtc.RTPCodecParameters) error {
+	if sa.config.DriverConfig == nil {
+		sa.config.DriverConfig = make(map[string]string)
+	}
 	sa.config.DriverConfig["webrtc_codec_level"] = fmt.Sprintf("%d||%s||%s", finalCodec.PayloadType, finalCodec.MimeType, finalCodec.SDPFmtpLine)
 	switch sa.config.DeviceType {
 	// case DEVICE_TYPE_DUMMY:
@@ -158,16 +165,22 @@ func (sa *Agent) Capabilities() sdriver.DriverCaps {
 }
 
 func (sa *Agent) Start() {
-	err := sa.driver.Start()
-	if err != nil {
+	if err := sa.StartChecked(); err != nil {
 		log.Printf("Failed to start driver: %v", err)
-		return
+	}
+}
+
+// StartChecked is used by the TCP transport to report startup failure.
+func (sa *Agent) StartChecked() error {
+	if err := sa.driver.Start(); err != nil {
+		return err
 	}
 	sa.startTime = time.Now() // 服务器基准时间线
 	go sa.ServeVideoStream()
 	go sa.ServeAudioStream()
 
 	sa.driver.RequestIDR(true)
+	return nil
 }
 
 func (sa *Agent) PLIRequest() {
