@@ -1,13 +1,5 @@
 package webservice
 
-type Device interface {
-	GetType() string
-	GetDeviceID() string
-	GetIP() string
-	GetPort() int
-	GetStatus() string
-}
-
 type DeviceInfo struct {
 	Type     string `json:"device_type"`
 	DeviceID string `json:"device_id"`

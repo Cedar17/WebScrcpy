@@ -1,10 +1,6 @@
 package scrcpy
 
-// This file implements the "on-device" (root, no adb) transport.
-//
-// The regular path drives a device from a host: adb push + adb reverse + a
-// local TCP listener. On the device itself there is no adb, but we do not
-// need one either:
+// Local Android transport (root, no adb):
 //
 //   - scrcpy-server is started locally with app_process (webscreen is already
 //     running as root there, the server drops back to the shell uid itself);
@@ -13,8 +9,7 @@ package scrcpy
 //     (video, audio, control) on it;
 //   - we simply connect to that abstract socket three times.
 //
-// Everything after the three connections (device metadata, frame framing,
-// WebRTC, control, clipboard, uhid) is shared with the adb based path.
+// The three connections carry device metadata, framed media and control messages.
 
 import (
 	"fmt"
@@ -281,7 +276,7 @@ func LocalSupportsOpusAudio() bool {
 func LocalVideoEncoderList() []string {
 	localEncodersOnce.Do(func() {
 		content := readLocalCodecXML()
-		// Same rule as the adb based path: only <MediaCodec> entries whose name
+		// Only <MediaCodec> entries whose name
 		// contains "encoder" and which are video codecs. This keeps non-encoder
 		// entries (e.g. <Feature name="max-video-encoder-input-buffers">) out of
 		// the list, they can never be used as a video_encoder.

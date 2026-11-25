@@ -335,7 +335,7 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 	return id,s,nil
 }
 
-func (wm *WebMaster) leaveTCP(id, deviceID string, s *tcpSession, c *tcpClient) {
+func (wm *WebMaster) leaveTCP(id string, s *tcpSession, c *tcpClient) {
 	c.close()
 	wm.tcpMu.Lock()
 	defer wm.tcpMu.Unlock()
@@ -366,7 +366,7 @@ func (wm *WebMaster) handleScreenTCP(ctx *gin.Context) {
 		_ = conn.WriteJSON(map[string]any{"status":"error","message":err.Error(),"stage":"tcp_init"})
 		return
 	}
-	defer wm.leaveTCP(id,config.DeviceID,s,c)
+	defer wm.leaveTCP(id,s,c)
 	go c.writer()
 	_ = conn.SetReadDeadline(time.Now().Add(tcpPongWait))
 	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(tcpPongWait)) })

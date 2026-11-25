@@ -34,18 +34,14 @@ type ScrcpyDriver struct {
 	audioConn   net.Conn
 	controlConn net.Conn
 
-	options map[string]string
-
 	capabilities sdriver.DriverCaps
 
 	ctx       context.Context
 	cancel    context.CancelFunc
 	scid      string
-	// socketName string
 
 	// handle of the locally started scrcpy server
 	localServerCmd *exec.Cmd
-	localServerCtx context.Context
 
 	// dead becomes true as soon as the scrcpy session is gone, so that a new
 	// session rebuilds the pipeline instead of reusing a dead one.
@@ -211,7 +207,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		listener.Close()
 		return nil, err
 	}
-	da.options = options
 	// log.Println("Scrcpy server started successfully")
 	// conns := make([]net.Conn, 3)
 	log.Println("start tcp listening")
@@ -305,11 +300,6 @@ func (da *ScrcpyDriver) markDead(reason string) {
 		default:
 		}
 	}
-}
-
-func (da *ScrcpyDriver) ShowDeviceInfo() {
-	log.Printf("[scrcpy] Device Name: %s", da.deviceName)
-	log.Printf("[scrcpy] media Meta: %v", da.mediaMeta)
 }
 
 // Please Ensure the input conn is not Control conn
@@ -414,9 +404,4 @@ func createCopy(src []byte, context string) []byte {
 	dst := make([]byte, len(src))
 	copy(dst, src)
 	return dst
-}
-
-func ShowFrameHeaderInfo(header ScrcpyFrameHeader) {
-	log.Printf("[scrcpy] Frame Header - PTS: %d, Size: %d, IsConfig: %v, IsKeyFrame: %v",
-		header.PTS, header.Size, header.IsConfig, header.IsKeyFrame)
 }

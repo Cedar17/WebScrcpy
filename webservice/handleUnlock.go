@@ -70,14 +70,3 @@ func (wm *WebMaster) handleUnlock(c *gin.Context) {
 	c.JSON(200, gin.H{"result": "success", "message": "Unlocked", "token": token})
 	delete(wm.UnlockAttemptRecords, sIP)
 }
-
-// Set a new PIN for web access
-// func (wm *WebMaster) handleSetPIN(c *gin.Context) {
-// 	var req struct {
-// 		NewPIN string `json:"new_pin"`
-// 	}
-// 	if err := c.BindJSON(&req); err != nil {
-// 		c.JSON(400, gin.H{"error": "Invalid request"})
-// 		return
-// 	}
-// }

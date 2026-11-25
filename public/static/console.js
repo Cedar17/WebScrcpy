@@ -4,55 +4,8 @@
  * ----------------------------------------
  */
 const STORAGE_KEY = 'webscreen_device_configs';
-const IGNORED_STORAGE_KEY = 'webscreen_ignored_devices';
 let knownDevices = [];
 let activeConfigSerial = null;
-let ignoredDevices = loadIgnoredDevices();
-let showIgnored = false;
-
-function loadIgnoredDevices() {
-    try {
-        const stored = localStorage.getItem(IGNORED_STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch(e) { return []; }
-}
-
-function saveIgnoredDevices() {
-    localStorage.setItem(IGNORED_STORAGE_KEY, JSON.stringify(ignoredDevices));
-}
-
-function toggleShowIgnored() {
-    showIgnored = !showIgnored;
-    const btn = document.getElementById('toggleIgnoredBtn');
-    const icon = document.getElementById('toggleIgnoredIcon');
-    if (btn) {
-        if (showIgnored) {
-            btn.classList.add('bg-[#333]', 'text-white');
-            if (icon) icon.textContent = 'visibility';
-        } else {
-            btn.classList.remove('bg-[#333]', 'text-white');
-            if (icon) icon.textContent = 'visibility_off';
-        }
-    }
-    renderDeviceList();
-}
-
-function ignoreDevice(serial) {
-    if (!ignoredDevices.includes(serial)) {
-        ignoredDevices.push(serial);
-        saveIgnoredDevices();
-        renderDeviceList();
-        showToast(i18n.t('device_ignored') || '设备已忽略');
-    }
-}
-
-function unignoreDevice(serial) {
-    ignoredDevices = ignoredDevices.filter(s => s !== serial);
-    saveIgnoredDevices();
-    renderDeviceList();
-    showToast(i18n.t('device_unignored') || '设备已取消忽略');
-}
-
 // Refactored structure to match new requirements (all in driver_config)
 const defaultConfig = {
     driver_config: {}
@@ -156,7 +109,6 @@ function renderDeviceList() {
         const serial = typeof device === 'string' ? device : device.device_id;
         const config = ensureDeviceConfig(device);
         const drv = config.driver_config || {};
-        const isIgnored = false;
 
         // Construct config tags
         let tagsHtml = '';
@@ -204,7 +156,7 @@ function renderDeviceList() {
         const subLine = "";
         const footerAction = `<button class="local-stream-button w-full py-3 rounded-full bg-[#2a2b2c] group-hover:bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-primary)] font-medium">${i18n.t("start_stream")}</button>`;
         const card = document.createElement('div');
-        card.className = `card ${isIgnored ? 'opacity-40 grayscale' : ''} rounded-[24px] p-5 flex flex-col justify-between h-full border border-transparent hover:border-[#444] group transition-all`;
+        card.className = `card rounded-[24px] p-5 flex flex-col justify-between h-full border border-transparent hover:border-[#444] group transition-all`;
 
         card.innerHTML = `
                     <div>

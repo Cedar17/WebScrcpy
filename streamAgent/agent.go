@@ -95,39 +95,12 @@ func (sa *Agent) Alive() bool {
 	return true
 }
 
-func (sa *Agent) GetCodecInfo() (string, string) {
-	m := sa.driver.MediaMeta()
-	return m.VideoCodec, m.AudioCodec
-}
-
-// Notify asks the browser(s) to display a message (toast). It is used for
-// situations that are handled automatically, e.g. falling back to another
-// video codec, so the user is not left wondering why the stream differs from
-// what was configured.
-func (sa *Agent) Notify(msg string) {
-	if sa.controlCh == nil {
-		log.Printf("[agent] no control channel, cannot notify: %s", msg)
-		return
-	}
-	select {
-	case sa.controlCh <- sdriver.TextMsgEvent{Msg: msg}:
-	default:
-		log.Printf("[agent] dropped notification: %s", msg)
-	}
-}
-
 func (sa *Agent) GetMediaMeta() sdriver.MediaMeta {
 	return sa.driver.MediaMeta()
 }
 
 func (sa *Agent) Capabilities() sdriver.DriverCaps {
 	return sa.driver.Capabilities()
-}
-
-func (sa *Agent) Start() {
-	if err := sa.StartChecked(); err != nil {
-		log.Printf("Failed to start driver: %v", err)
-	}
 }
 
 // StartChecked is used by the TCP transport to report startup failure.

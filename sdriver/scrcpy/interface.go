@@ -24,14 +24,6 @@ func (sd *ScrcpyDriver) Start() error {
 	return nil
 }
 
-func (sd *ScrcpyDriver) UpdateDriverConfig(config map[string]string) error {
-	return nil
-}
-
-func (sd *ScrcpyDriver) Pause() {
-	// sd.stopVideoReader()
-}
-
 func (sd *ScrcpyDriver) SendEvent(event sdriver.Event) error {
 	switch e := event.(type) {
 	case *sdriver.TouchEvent:

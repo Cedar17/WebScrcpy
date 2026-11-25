@@ -5,13 +5,9 @@ type SDriver interface {
 	SendEvent(event Event) error
 
 	Start() error
-	Pause()
 
 	RequestIDR(firstFrame bool)
 	Capabilities() DriverCaps
-	// CodecInfo() (videoCodec string, audioCodec string)
 	MediaMeta() MediaMeta
 	Stop()
-
-	// ConfigDescription() map[string]string
 }
