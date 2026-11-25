@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master, feature/local-tcp ]
+    branches: [ main, feature/local-tcp, feature/android-only ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -22,6 +22,7 @@ jobs:
 
       - name: Check TCP playback JavaScript
         run: |
+          node --check public/static/console.js
           node --check public/static/connect.js
           node --check public/static/tcp-audio.js
           node --check public/static/vendor/jmuxer.min.js
@@ -31,8 +32,19 @@ jobs:
         with:
           go-version: 'stable'
 
-      # Same build the project already does for Termux users: android/arm64,
-      # statically linked and runnable on the device.
+      - name: Verify Android-only dependency graph
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          go list -deps . > "$RUNNER_TEMP/deps.txt"
+          if grep -E '^(github.com/pion/|webscreen/(linuxRecorder|sdriver/(linux|sunshine)|webservice/(android|linux)))' "$RUNNER_TEMP/deps.txt"; then
+            echo "Unexpected legacy dependency in Android build"
+            exit 1
+          fi
+
+      # Build only the Android server.
       - name: Build webscreen for android/arm64
         env:
           GOOS: android
@@ -85,6 +97,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk WebScreen-debug.apk
           ls -l WebScreen-debug.apk
+          echo "APK bytes: $(stat -c%s WebScreen-debug.apk)" >> "$GITHUB_STEP_SUMMARY"
           unzip -l WebScreen-debug.apk | grep -E "libwebscreen|classes.dex" || true
 
       - name: Upload APK

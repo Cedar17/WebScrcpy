@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WebScreen Console</title>
+    <title>WebScrcpy</title>
     <link rel="manifest" href="/static/manifest.json">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,7 +26,7 @@
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <span class="material-symbols-rounded text-3xl text-[var(--md-sys-color-primary)]">devices</span>
-                <h1 class="text-xl md:text-2xl font-semibold tracking-tight" data-i18n="app_title">WebScreen Console
+                <h1 class="text-xl md:text-2xl font-semibold tracking-tight" data-i18n="app_title">WebScrcpy
                 </h1>
 
                 <div class="hidden md:flex items-center gap-2 ml-6 border-l border-gray-700 pl-6">
@@ -56,21 +56,9 @@
                     管理和串流您的设备</p>
             </div>
             <div class="flex gap-3 w-full md:w-auto">
-                <button id="toggleIgnoredBtn" style="display: none;" onclick="toggleShowIgnored()"
-                    class="flex flex-none items-center justify-center gap-2 px-4 py-2.5 rounded-full border border-gray-700 text-gray-400 hover:text-white hover:bg-[#333] transition-colors font-medium text-sm"
-                    title="Show/Hide ignored devices">
-                    <span class="material-symbols-rounded text-lg" id="toggleIgnoredIcon">visibility_off</span>
-                </button>
-                <button onclick="openModal('pairModal')"
-                    class="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#2a2b2c] text-[#e3e3e3] hover:bg-[#333] transition-colors font-medium text-sm">
-                    <span class="material-symbols-rounded text-lg">qr_code_scanner</span>
-                    <span data-i18n="wireless_pair">无线配对</span>
-                </button>
-                <button onclick="openModal('connectModal')"
-                    class="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] hover:opacity-90 transition-opacity font-medium text-sm shadow-md">
-                    <span class="material-symbols-rounded text-lg">add</span>
-                    <span data-i18n="connect_device">连接设备</span>
-                </button>
+                
+                
+                
             </div>
         </div>
 
@@ -84,89 +72,6 @@
         </div>
 
     </main>
-
-    <!-- Connect Modal -->
-    <dialog id="connectModal" class="bg-transparent p-4 m-auto outline-none">
-        <div class="dialog-panel w-full max-w-sm bg-[#1e1f20] rounded-[28px] p-6 shadow-2xl border border-[#333]">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-medium" data-i18n="connect_new_device">连接新设备</h3>
-                <button onclick="closeModal('connectModal')" class="p-1 rounded-full hover:bg-white/10">
-                    <span class="material-symbols-rounded text-gray-400">close</span>
-                </button>
-            </div>
-
-            <div class="space-y-4">
-                <div class="group">
-                    <label class="block text-xs font-medium text-[var(--md-sys-color-primary)] mb-1 ml-1"
-                        data-i18n="ip_address">IP 地址</label>
-                    <input type="text" id="connectIP"
-                        class="md-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
-                        placeholder="192.168.0.x">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1 ml-1" data-i18n="port_default">端口 (默认
-                        5555)</label>
-                    <input type="text" id="connectPort"
-                        class="md-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" placeholder="5555"
-                        value="5555">
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-3 mt-8">
-                <button onclick="closeModal('connectModal')"
-                    class="px-5 py-2.5 rounded-full text-[var(--md-sys-color-primary)] hover:bg-white/5 font-medium text-sm transition-colors"
-                    data-i18n="cancel">取消</button>
-                <button onclick="connectDevice()"
-                    class="px-6 py-2.5 rounded-full bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] font-medium text-sm shadow-sm hover:opacity-90 transition-opacity"
-                    data-i18n="connect">连接</button>
-            </div>
-        </div>
-    </dialog>
-
-    <!-- Pair Modal -->
-    <dialog id="pairModal" class="bg-transparent p-4 m-auto outline-none">
-        <div class="dialog-panel w-full max-w-sm bg-[#1e1f20] rounded-[28px] p-6 shadow-2xl border border-[#333]">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-medium" data-i18n="wireless_pair_title">无线配对</h3>
-                <button onclick="closeModal('pairModal')" class="p-1 rounded-full hover:bg-white/10">
-                    <span class="material-symbols-rounded text-gray-400">close</span>
-                </button>
-            </div>
-
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-medium text-[var(--md-sys-color-primary)] mb-1 ml-1"
-                        data-i18n="ip_address">IP 地址</label>
-                    <input type="text" id="pairIP"
-                        class="md-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
-                        placeholder="192.168.0.x">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1 ml-1" data-i18n="port_wireless">端口
-                        (无线调试端口)</label>
-                    <input type="text" id="pairPort"
-                        class="md-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
-                        placeholder="e.g. 38123">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1 ml-1" data-i18n="pair_code">配对码
-                        (6位)</label>
-                    <input type="number" id="pairCode"
-                        class="md-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
-                        placeholder="123456">
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-3 mt-8">
-                <button onclick="closeModal('pairModal')"
-                    class="px-5 py-2.5 rounded-full text-[var(--md-sys-color-primary)] hover:bg-white/5 font-medium text-sm transition-colors"
-                    data-i18n="cancel">取消</button>
-                <button onclick="pairDevice()"
-                    class="px-6 py-2.5 rounded-full bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] font-medium text-sm shadow-sm hover:opacity-90 transition-opacity"
-                    data-i18n="pair">配对</button>
-            </div>
-        </div>
-    </dialog>
 
     <!-- Configuration Modal -->
     <dialog id="configModal" class="bg-transparent p-4 m-auto outline-none">

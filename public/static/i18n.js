@@ -1,6 +1,6 @@
 const translations = {
     en: {
-        app_title: "WebScreen Console",
+        app_title: "WebScrcpy",
         usb_devices: "USB Devices",
         no_wireless_devices: "No wireless devices yet: pair with \"Wireless Pair\", or use \"Connect Device\" with ip:port.",
         refresh_usb_auth: "Refresh & request authorization",
@@ -119,7 +119,7 @@ const translations = {
         error_empty_sdp_answer: "Received empty SDP answer from server. WebRTC connection cannot be established.",
     },
     zh: {
-        app_title: "WebScreen 控制台",
+        app_title: "WebScrcpy",
         usb_devices: "USB 设备",
         no_wireless_devices: "暂无无线设备：用上方「无线配对」配对，或用「连接设备」填写 ip:端口 接入。",
         refresh_usb_auth: "刷新并请求授权",
@@ -237,7 +237,7 @@ const translations = {
         error_empty_sdp_answer: "从服务器收到空的 SDP 答案，无法建立 WebRTC 连接。",
     },
     ja: {
-        app_title: "WebScreen コンソール",
+        app_title: "WebScrcpy",
         usb_devices: "USB デバイス",
         no_wireless_devices: "ワイヤレスデバイスはありません。「ワイヤレスペアリング」または「デバイスを接続」で ip:ポート を入力してください。",
         refresh_usb_auth: "更新して認証を要求",

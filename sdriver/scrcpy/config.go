@@ -1,10 +1,8 @@
 package scrcpy
 
 import (
-	"context"
 	"embed"
 	"webscreen/sdriver"
-	"webscreen/utils"
 )
 
 const (
@@ -25,24 +23,7 @@ var scrcpyServerData embed.FS
 
 // Receive an optional params
 func ConfigDescription(opt string) []sdriver.ConfigParamDescription {
-	deviceID := opt
-	var encoderList []string
-	// var appList []string
-	if utils.IsLocalRootMode() {
-		// On the device itself the encoders are read from the local codec
-		// configuration files instead of `adb shell grep`.
-		encoderList = LocalVideoEncoderList()
-	} else if deviceID != "" {
-		adbClient := NewADBClient(deviceID, "", context.Background())
-		encoderList = adbClient.SupportedVideoEncoderList()
-		// appList = adbClient.AppList("3")
-		// encoderListStr = strings.Join(encoderList, ",")
-		// appListStr = strings.Join(appList, ",")
-		adbClient.Stop()
-	} else {
-		encoderList = []string{}
-		// appList = []string{}
-	}
+	encoderList := LocalVideoEncoderList()
 
 	return []sdriver.ConfigParamDescription{
 		{

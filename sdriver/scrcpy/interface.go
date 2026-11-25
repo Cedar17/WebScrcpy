@@ -101,12 +101,7 @@ func (sd *ScrcpyDriver) Stop() {
 	if sd.controlConn != nil {
 		sd.controlConn.Close()
 	}
-	// sd.adbClient.ReverseRemove(fmt.Sprintf("localabstract:scrcpy_%s", sd.scid))
-	if sd.localMode {
-		sd.stopLocalServer()
-	} else {
-		sd.adbClient.Stop()
-	}
+	sd.stopLocalServer()
 	sd.cancel()
 	sd.markDead("会话已停止")
 }

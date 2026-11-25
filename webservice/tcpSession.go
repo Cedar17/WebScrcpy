@@ -11,17 +11,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v4"
 
 	"webscreen/sdriver"
 	sagent "webscreen/streamAgent"
-	"webscreen/webservice/android"
+	"webscreen/sdriver/scrcpy"
+	"sort"
+	"strings"
 )
 
 // The screen protocol is carried exclusively by a same-origin WebSocket.
 // Server messages: JSON metadata/errors; binary [kind, flags, uint64 PTS us, payload].
 // Client binary messages are the existing Agent control packets, unmodified.
 const (
+	MAX_CLIENTS_PER_DEVICE = 4
 	tcpVideo byte = 1
 	tcpAudio byte = 2
 	tcpFeedback byte = 3
@@ -244,7 +246,32 @@ func (s *tcpSession) finish() {
 	for c := range s.clients { c.close() }
 }
 
+func agentConfigKey(config sagent.AgentConfig) string {
+	keys := make([]string, 0, len(config.DriverConfig))
+	for k := range config.DriverConfig {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var sb strings.Builder
+	sb.WriteString(config.DeviceType)
+	sb.WriteString("|")
+	sb.WriteString(config.DeviceID)
+	sb.WriteString("|")
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString("=")
+		sb.WriteString(config.DriverConfig[k])
+		sb.WriteString(";")
+	}
+	sb.WriteString(fmt.Sprintf("|av=%v|ts=%v", config.AVSync, config.UseLocalTimestamp))
+	return sb.String()
+}
+
 func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *tcpSession, error) {
+	if config.DeviceType != sagent.DEVICE_TYPE_ANDROID { return "", nil, fmt.Errorf("only local Android is supported") }
+	config.DeviceID = scrcpy.LocalDeviceName()
+	config.DeviceIP = "127.0.0.1"
+	config.DevicePort = "0"
 	if config.DriverConfig == nil { config.DriverConfig = map[string]string{} }
 	codec := config.DriverConfig["video_codec"]
 	if codec == "" { codec = "h264"; config.DriverConfig["video_codec"] = codec }
@@ -270,14 +297,8 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 	}
 	newSession := s == nil
 	if newSession {
-		agent := sagent.New(config,nil,nil)
-		// This is an encoder configuration only; no PeerConnection, ICE or RTP
-		// socket is created. Preserve explicit user encoder options.
-		mime := webrtc.MimeTypeH264
-		if codec == "h265" { mime = webrtc.MimeTypeH265 }
-		if err := agent.InitDriver(webrtc.RTPCodecParameters{RTPCodecCapability:webrtc.RTPCodecCapability{MimeType:mime}}); err != nil {
-			return "",nil,err
-		}
+		agent := sagent.New(config)
+		if err := agent.InitDriver(); err != nil { return "", nil, err }
 		s = &tcpSession{agent:agent,configKey:key,clients:make(map[*tcpClient]bool),parameters:make(map[byte][]byte),hevc:codec=="h265",done:make(chan struct{})}
 		s.meta = tcpJSON(map[string]any{"status":"ok","stage":"tcp_metainfo","capabilities":agent.Capabilities(),"media_meta":agent.GetMediaMeta()})
 		agent.OnVideoBox = s.video
@@ -306,7 +327,6 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 			delete(wm.tcpSessions,id)
 			return "",nil,err
 		}
-		android.GetManager().MarkStreaming(config.DeviceID,true)
 	} else {
 		s.controlMu.Lock()
 		s.agent.PLIRequest()
@@ -327,7 +347,6 @@ func (wm *WebMaster) leaveTCP(id, deviceID string, s *tcpSession, c *tcpClient) 
 		s.finish()
 		s.agent.Close()
 		delete(wm.tcpSessions,id)
-		android.GetManager().MarkStreaming(deviceID,false)
 	}
 }
 

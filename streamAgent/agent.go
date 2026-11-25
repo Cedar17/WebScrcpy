@@ -5,11 +5,7 @@ import (
 	"log"
 	"time"
 	"webscreen/sdriver"
-	linuxDriver "webscreen/sdriver/linux"
 	"webscreen/sdriver/scrcpy"
-	"webscreen/sdriver/sunshine"
-
-	"github.com/pion/webrtc/v4"
 )
 
 type Agent struct {
@@ -20,12 +16,6 @@ type Agent struct {
 	videoCh   <-chan sdriver.AVBox
 	audioCh   <-chan sdriver.AVBox
 	controlCh chan sdriver.Event
-
-	// WebRTC 相关
-	videoTrack        *webrtc.TrackLocalStaticRTP
-	audioTrack        *webrtc.TrackLocalStaticRTP
-	startTime         time.Time
-	useLocalTimestamp bool
 
 	// WebSocket 回调
 	OnVideoFrame func([]byte)
@@ -40,35 +30,18 @@ type Agent struct {
 // SAgent 负责初始化driver并接受来自sdriver的数据，并处理来自前端的控制命令。
 // 提供一系列Hook
 // ========================
-func New(config AgentConfig, videoTrack *webrtc.TrackLocalStaticRTP, audioTrack *webrtc.TrackLocalStaticRTP) *Agent {
-	sa := &Agent{
-		config:            config,
-		videoTrack:        videoTrack,
-		audioTrack:        audioTrack,
-		useLocalTimestamp: config.UseLocalTimestamp,
-	}
-	log.Printf("AVSync: %v, UseLocalTimestamp: %v", config.AVSync, config.UseLocalTimestamp)
-	log.Printf("Driver config: %+v", config.DriverConfig)
-	return sa
+func New(config AgentConfig) *Agent {
+	return &Agent{config: config}
 }
 
 // driverInitAttempts 是 scrcpy 会话启动的最大尝试次数（首次 + 重试）。
 const driverInitAttempts = 3
 
-func (sa *Agent) InitDriver(finalCodec webrtc.RTPCodecParameters) error {
+func (sa *Agent) InitDriver() error {
 	if sa.config.DriverConfig == nil {
 		sa.config.DriverConfig = make(map[string]string)
 	}
-	sa.config.DriverConfig["webrtc_codec_level"] = fmt.Sprintf("%d||%s||%s", finalCodec.PayloadType, finalCodec.MimeType, finalCodec.SDPFmtpLine)
 	switch sa.config.DeviceType {
-	// case DEVICE_TYPE_DUMMY:
-	// 	// 初始化 Dummy Driver
-	// 	dummyDriver, err := dummy.New(sa.config.DriverConfig)
-	// 	if err != nil {
-	// 		log.Printf("Failed to initialize dummy driver: %v", err)
-	// 		return err
-	// 	}
-	// 	sa.driver = dummyDriver
 	case DEVICE_TYPE_ANDROID:
 		// 初始化 Android Driver（失败有限重试）
 		//
@@ -96,16 +69,6 @@ func (sa *Agent) InitDriver(finalCodec webrtc.RTPCodecParameters) error {
 		if sa.driver == nil {
 			return lastErr
 		}
-	case DEVICE_TYPE_LINUX, "xvfb":
-		// 初始化 Linux Driver
-		driver, err := linuxDriver.New(sa.config.DriverConfig)
-		if err != nil {
-			log.Printf("Failed to initialize Linux driver: %v", err)
-			return err
-		}
-		sa.driver = driver
-	case DEVICE_TYPE_SUNSHINE:
-		sunshine.SSTest()
 	default:
 		log.Printf("Unsupported device type: %s", sa.config.DeviceType)
 		return fmt.Errorf("unsupported device type: %s", sa.config.DeviceType)
@@ -175,7 +138,6 @@ func (sa *Agent) StartChecked() error {
 	if err := sa.driver.Start(); err != nil {
 		return err
 	}
-	sa.startTime = time.Now() // 服务器基准时间线
 	go sa.ServeVideoStream()
 	go sa.ServeAudioStream()
 
