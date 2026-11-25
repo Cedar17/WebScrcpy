@@ -43,7 +43,9 @@ func Default(staticFS fs.FS) *WebMaster {
 
 func (wm *WebMaster) setRouter() {
 	// gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
+	r := gin.New()
+	// Periodic local readiness checks must not flood the Android UI log.
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/healthz"}}), gin.Recovery())
 
 	// 前端资源是 //go:embed 进二进制的：升级后浏览器若沿用缓存的旧 HTML/JS，
 	// 会出现"按钮在但点了没反应"（旧页面没有新脚本标签）这类极难排查的现象。

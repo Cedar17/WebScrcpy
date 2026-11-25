@@ -79,6 +79,11 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
 
+      - name: Test server state reconciliation
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
       # A fixed (test only) keystore so consecutive CI builds can update each
       # other instead of requiring an uninstall first.
       - name: Restore signing keystore

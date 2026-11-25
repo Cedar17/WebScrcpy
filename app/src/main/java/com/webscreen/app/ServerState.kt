@@ -13,7 +13,14 @@ object ServerState {
 
     enum class Phase { STOPPED, STARTING, RUNNING, STOPPING, ERROR }
 
-    data class Status(val phase: Phase = Phase.STOPPED, val revision: Long = 0, val error: String? = null)
+    data class Status(
+        val phase: Phase = Phase.STOPPED,
+        val revision: Long = 0,
+        val error: String? = null,
+        val sinceNanos: Long = System.nanoTime()
+    )
+
+    private const val START_WATCHDOG_NANOS = 60_000_000_000L
 
     @Volatile
     var status = Status()
@@ -44,11 +51,20 @@ object ServerState {
     }
 
     @Synchronized
-    fun reconcile(observed: Status, ready: Boolean): Boolean {
-        if (status != observed || observed.phase == Phase.STARTING || observed.phase == Phase.STOPPING) return false
-        val next = if (ready) Phase.RUNNING else if (observed.phase == Phase.RUNNING) Phase.STOPPED else observed.phase
+    fun reconcile(observed: Status, ready: Boolean, nowNanos: Long = System.nanoTime()): Boolean {
+        if (status != observed || observed.phase == Phase.STOPPING) return false
+        // HTTP evidence is authoritative, including during STARTING and after ERROR.
+        // A negative sample during startup is normal; only expire an orphaned request.
+        val next = when {
+            ready -> Phase.RUNNING
+            observed.phase == Phase.RUNNING -> Phase.STOPPED
+            observed.phase == Phase.STARTING &&
+                nowNanos - observed.sinceNanos >= START_WATCHDOG_NANOS -> Phase.ERROR
+            else -> observed.phase
+        }
         if (next == observed.phase) return false
-        status = Status(next, status.revision + 1)
+        val error = if (next == Phase.ERROR) "启动状态超时，请查看日志" else null
+        status = Status(next, status.revision + 1, error)
         return true
     }
 

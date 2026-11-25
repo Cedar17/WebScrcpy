@@ -14,6 +14,8 @@ import android.util.Log
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.Proxy
+import org.json.JSONObject
 import java.util.concurrent.Executors
 import android.os.SystemClock
 
@@ -124,7 +126,18 @@ class WebScreenService : Service() {
 
         // Do not launch a second instance over an existing live root process.
         if (detectRunning()) {
-            fail(revision, "检测到残留服务进程，请先停止再启动")
+            // A detached root process may still be warming up (or survived an APK update).
+            // Never launch a second instance or kill it just because the first probe failed.
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            while (ServerState.status.revision == revision && SystemClock.elapsedRealtime() < deadline) {
+                if (isReady(port)) {
+                    ServerState.transition(revision, ServerState.Phase.RUNNING)
+                    updateNotification()
+                    return
+                }
+                Thread.sleep(200)
+            }
+            fail(revision, "检测到服务进程，但 HTTP 未就绪: " + lastProbeDetail)
             return
         }
         if (ServerState.status.revision != revision) return
@@ -163,10 +176,8 @@ class WebScreenService : Service() {
                 worker.execute {
                     if (process === started) {
                         process = null
-                        val current = ServerState.status
-                        if (current.phase == ServerState.Phase.RUNNING && !isReady(port)) {
-                            ServerState.transition(current.revision, ServerState.Phase.ERROR, "服务退出 (exit=$code)")
-                        }
+                        // The su wrapper can exit while the detached root server survives.
+                        // The activity reconciles actual HTTP readiness, not wrapper lifetime.
                     }
                     ServerState.append("[app] WebScrcpy exited with code $code")
                 }
@@ -194,9 +205,9 @@ class WebScreenService : Service() {
 
         // STOPPING owns cleanup when the user cancelled this start.
         if (ServerState.status.revision != revision) return
-        started.destroy()
-        process = null
-        fail(revision, "服务未在 20 秒内完成启动，请查看日志")
+        // A failed readiness probe is not proof that the root process is dead.
+        // Keep it available for late readiness or an explicit Stop.
+        fail(revision, "服务未在 20 秒内完成 HTTP 探测: " + lastProbeDetail)
     }
 
     private fun stopServer(revision: Long) {
@@ -225,6 +236,12 @@ class WebScreenService : Service() {
     }
 
     private fun fail(revision: Long, message: String) {
+        val observed = ServerState.status
+        if (observed.revision != revision) return
+        if (observed.phase == ServerState.Phase.STARTING && isReady(Prefs(this).port)) {
+            if (ServerState.transition(revision, ServerState.Phase.RUNNING)) updateNotification()
+            return
+        }
         if (ServerState.transition(revision, ServerState.Phase.ERROR, message)) {
             ServerState.append("[app] $message")
         }
@@ -395,20 +412,68 @@ class WebScreenService : Service() {
             }
         }
 
-        /** Readiness is independent of Android's restricted /proc visibility. */
-        fun isReady(port: Int): Boolean {
-            var connection: HttpURLConnection? = null
-            return try {
-                connection = URL("http://127.0.0.1:$port/healthz").openConnection(java.net.Proxy.NO_PROXY) as HttpURLConnection
-                connection.connectTimeout = 700
-                connection.readTimeout = 700
+        @Volatile
+        var lastProbeDetail: String = "not probed"
+            private set
+
+        private data class HttpProbe(val code: Int, val body: String)
+
+        private fun getLocal(port: Int, path: String): HttpProbe {
+            val connection = URL("http://127.0.0.1:$port$path")
+                .openConnection(Proxy.NO_PROXY) as HttpURLConnection
+            try {
+                connection.connectTimeout = 1000
+                connection.readTimeout = 1000
                 connection.instanceFollowRedirects = false
-                connection.responseCode == 200 &&
-                    connection.inputStream.bufferedReader().use { it.readText() } == "WebScrcpy ready"
-            } catch (_: Exception) {
-                false
+                connection.useCaches = false
+                val code = connection.responseCode
+                // Do not read an unbounded response from a potentially unrelated listener.
+                val body = if (code == 200) connection.inputStream.bufferedReader().use { reader ->
+                    val chars = CharArray(4096)
+                    var count = 0
+                    while (count < chars.size) {
+                        val n = reader.read(chars, count, chars.size - count)
+                        if (n <= 0) break
+                        count += n
+                    }
+                    String(chars, 0, count)
+                } else ""
+                return HttpProbe(code, body)
             } finally {
-                connection?.disconnect()
+                connection.disconnect()
+            }
+        }
+
+        private fun reportProbe(ready: Boolean, detail: String): Boolean {
+            if (lastProbeDetail != detail) {
+                lastProbeDetail = detail
+                Log.i(TAG, "HTTP readiness: $detail")
+            }
+            return ready
+        }
+
+        /** Use an identified HTTP endpoint, not process existence or a bare TCP port. */
+        fun isReady(port: Int): Boolean {
+            return try {
+                val health = getLocal(port, "/healthz")
+                if (health.code == 200 && health.body.trim() == "WebScrcpy ready") {
+                    reportProbe(true, "healthz OK")
+                } else if (health.code == 404) {
+                    // An old root binary may survive an APK upgrade; its public PWA
+                    // manifest is available even with PIN authentication enabled.
+                    val manifest = getLocal(port, "/static/manifest.json")
+                    val json = if (manifest.code == 200) JSONObject(manifest.body) else null
+                    val name = json?.optString("name")
+                    val identified = json != null && (name == "WebScreen" || name == "WebScrcpy") &&
+                        json.optString("start_url") == "/" &&
+                        json.optString("display") == "standalone"
+                    if (identified) reportProbe(true, "legacy WebScreen/WebScrcpy server ready; stop/start to upgrade")
+                    else reportProbe(false, "healthz 404; no recognized legacy manifest")
+                } else {
+                    reportProbe(false, "healthz HTTP ${health.code}; unexpected readiness response")
+                }
+            } catch (e: Exception) {
+                reportProbe(false, "${e.javaClass.simpleName}: ${e.message}")
             }
         }
 

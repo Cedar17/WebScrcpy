@@ -146,8 +146,7 @@ class MainActivity : Activity() {
     private fun refreshFromProcess() {
         renderServer()
         val observed = ServerState.status
-        if (stateProbeInFlight || observed.phase == ServerState.Phase.STARTING ||
-            observed.phase == ServerState.Phase.STOPPING) return
+        if (stateProbeInFlight || observed.phase == ServerState.Phase.STOPPING) return
         stateProbeInFlight = true
         val port = prefs.port
         Thread {
@@ -159,12 +158,16 @@ class MainActivity : Activity() {
                         failedProbes = 0
                         ServerState.reconcile(observed, true)
                     } else if (observed.phase == ServerState.Phase.RUNNING) {
-                        if (++failedProbes >= 2) {
+                        if (++failedProbes >= 3) {
                             ServerState.reconcile(observed, false)
                             failedProbes = 0
                         }
                     } else {
                         failedProbes = 0
+                        // A lost service callback must not leave STARTING stuck forever.
+                        if (ServerState.reconcile(observed, false)) {
+                            ServerState.append("[app] Startup watchdog: " + WebScreenService.lastProbeDetail)
+                        }
                     }
                 }
                 renderServer()
@@ -220,7 +223,8 @@ class MainActivity : Activity() {
         val address = NetUtils.addressFor(prefs.port)
         addressView.text = address
         startButton.isEnabled = rootGranted && (phase == ServerState.Phase.STOPPED || phase == ServerState.Phase.ERROR)
-        stopButton.isEnabled = phase == ServerState.Phase.RUNNING || phase == ServerState.Phase.ERROR
+        stopButton.isEnabled = phase == ServerState.Phase.RUNNING || phase == ServerState.Phase.ERROR ||
+            phase == ServerState.Phase.STARTING
     }
 
     private fun renderLog() {
