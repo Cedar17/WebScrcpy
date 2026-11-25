@@ -45,7 +45,7 @@ func New(config WebMasterConfig, staticFS fs.FS) *WebMaster {
 		devicesDiscovered:    make(map[string]Device),
 		staticFS:             staticFS,
 		UnlockAttemptRecords: make(map[string]UnlockAttemptRecord),
-		WebRTCManager:        NewWebRTCManager(),
+		// TCP-only browser transport: do not initialize the legacy RTC manager.
 	}
 	wm.jwtSecret = []byte(time.Now().String())
 	return wm
@@ -92,7 +92,7 @@ func (wm *WebMaster) setRouter() {
 		screen.GET("/:id", func(ctx *gin.Context) {
 			ctx.FileFromFS("screen.html", http.FS(wm.staticFS))
 		})
-		screen.GET("/ws", wm.handleScreenWS)
+		screen.GET("/ws", wm.handleScreenTCP)
 	}
 
 	r.GET("/console", func(c *gin.Context) {
