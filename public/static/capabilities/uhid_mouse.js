@@ -6,8 +6,8 @@
     // UHID 鼠标状态
     let uhidMouseEnabled = false;
     let uhidMouseInitialized = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
+
+
     let mouseButtons = 0; // bit 0=左键, bit 1=右键, bit 2=中键
 
     // 鼠标移动累积（用于批量发送）

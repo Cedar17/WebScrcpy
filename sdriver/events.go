@@ -41,13 +41,6 @@ const (
 	EVENT_TYPE_TEXT_MSG EventType = 0x64
 )
 
-// 鼠标动作枚举
-const (
-	TOUCH_ACTION_MOVE = 0
-	TOUCH_ACTION_DOWN = 1
-	TOUCH_ACTION_UP   = 2
-)
-
 const (
 	BUTTON_PRIMARY   uint32 = 1 << 0
 	BUTTON_SECONDARY uint32 = 1 << 1

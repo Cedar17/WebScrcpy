@@ -21,42 +21,11 @@ const TYPE_START_APP uint8 = 16                   //启动应用
 const TYPE_RESET_VIDEO uint8 = 17
 const TYPE_REQUEST_IDR uint8 = TYPE_RESET_VIDEO
 
-const COPY_KEY_NONE = 0
-const COPY_KEY_COPY = 1
-const COPY_KEY_CUT = 2
-
-// android keycode ev
-const ACTION_DOWN byte = 0
-const ACTION_UP byte = 1
-const ACTION_MOVE byte = 2
-
-//android mouse event
-
-const BUTTON_PRIMARY uint32 = 1 << 0
-
-/**
- * Button constant: Secondary button (right mouse button).
- *
- * @see #getButtonState
- */
-const BUTTON_SECONDARY uint32 = 1 << 1
-
-/**
- * Button constant: Tertiary button (middle mouse button).
- *
- * @see #getButtonState
- */
-const BUTTON_TERTIARY uint32 = 1 << 2
 
 // Device -> Client messages
 const DEVICE_MSG_TYPE_CLIPBOARD = 0
 const DEVICE_MSG_TYPE_ACK_CLIPBOARD = 1
 const DEVICE_MSG_TYPE_UHID_OUTPUT = 2
-
-// device messages
-const TYPE_CLIPBOARD = 0
-const TYPE_ACK_CLIPBOARD = 1
-const TYPE_UHID_OUTPUT = 2
 
 // | **字段**         | **长度 (Byte)** | **说明**                                                                             |
 // | -------------- | ------------- | ---------------------------------------------------------------------------------- |

@@ -5,6 +5,7 @@
 - Remove unused OCR translation and empty command script, obsolete transport callbacks and unsupported driver constants.
 - Drop stale Docker/fnOS build ignore entries and legacy debug configuration.
 - Remove unused WebRTC structs, driver stubs and obsolete device-ignore UI code/translations.
+- Prune unused Android resources, old screenshot, redundant config types and unused browser control declarations.
 - Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
 
 ## 1.3.0 — Android-only TCP

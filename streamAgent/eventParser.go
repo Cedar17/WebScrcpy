@@ -14,8 +14,6 @@ func (a *Agent) parseEvent(raw []byte) (sdriver.Event, error) {
 	// log.Printf("Parsing control event of type: %d", eventType)
 
 	switch eventType {
-	// case sdriver.EVENT_TYPE_MOUSE:
-	// 	return a.parseMouseEvent(raw)
 	case sdriver.EVENT_TYPE_TOUCH:
 		return a.parseTouchEvent(raw)
 	case sdriver.EVENT_TYPE_MOUSE:

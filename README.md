@@ -36,7 +36,7 @@ cp dist/webscreen-android-arm64 app/src/main/jniLibs/arm64-v8a/libwebscreen.so
 ./gradlew assembleDebug
 ```
 
-The pure TCP 1.3.0 baseline was user-tested; the Android-only cleanup requires a new build and device regression test. See [CHANGELOG](CHANGELOG.md).
+The pure TCP 1.3.0 baseline was user-tested; the 1.4.0 cleanup requires a new build and device regression test. See [CHANGELOG](CHANGELOG.md).
 
 ## Security and compatibility
 

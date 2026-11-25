@@ -35,14 +35,14 @@
     // 按键映射 (Bit positions)
     const BTN_A = 0;
     const BTN_B = 1;
-    const BTN_C = 2;
+
     const BTN_X = 3;
     const BTN_Y = 4;
-    const BTN_Z = 5;
+
     const BTN_L1 = 6;
     const BTN_R1 = 7;
-    const BTN_L2 = 8;
-    const BTN_R2 = 9;
+
+
     const BTN_SELECT = 10;
     const BTN_START = 11;
     const BTN_MODE = 12;   // Home/Guide
