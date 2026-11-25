@@ -8,8 +8,21 @@ import (
 
 // sdriver -> Agent - > WebMaster -> 前端
 func (sa *Agent) FeedbackEvents() iter.Seq[[]byte] {
+	return sa.FeedbackEventsUntil(nil)
+}
+
+// FeedbackEventsUntil stops even when no control event arrives.
+func (sa *Agent) FeedbackEventsUntil(done <-chan struct{}) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
-		for event := range sa.controlCh {
+		for {
+			var event sdriver.Event
+			select {
+			case <-done:
+				return
+			case e, ok := <-sa.controlCh:
+				if !ok { return }
+				event = e
+			}
 			// log.Printf("[Agent] Received event: %+v", event)
 			eType := event.Type()
 			switch eType {

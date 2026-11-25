@@ -9,56 +9,43 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"webscreen/utils"
-	"webscreen/webservice/android"
 )
-
-type WebMasterConfig struct {
-	EnableAndroidDiscover bool
-}
 
 type WebMaster struct {
 	// WSConns []*websocket.Conn
 
-	WebRTCManager *WebRTCManager
+	tcpMu sync.Mutex
+	tcpSessions map[string]*tcpSession
 	// ScreenSessions map[string]ScreenSession
 
 	pin                  string
 	UnlockAttemptRecords map[string]UnlockAttemptRecord
 	jwtSecret            []byte
 
-	config              WebMasterConfig
-	router              *gin.Engine
-	devicesConnected    map[string]Device
-	devicesDiscovered   map[string]Device
-	devicesDiscoveredMu sync.RWMutex
-	pauseDiscovery      bool
+	router *gin.Engine
 	staticFS            fs.FS
 }
 
-func New(config WebMasterConfig, staticFS fs.FS) *WebMaster {
+func New(staticFS fs.FS) *WebMaster {
 	wm := &WebMaster{
 		// ScreenSessions:       make(map[string]ScreenSession),
-		config:               config,
-		devicesDiscovered:    make(map[string]Device),
 		staticFS:             staticFS,
 		UnlockAttemptRecords: make(map[string]UnlockAttemptRecord),
-		WebRTCManager:        NewWebRTCManager(),
+		// TCP-only browser transport: do not initialize the legacy RTC manager.
 	}
 	wm.jwtSecret = []byte(time.Now().String())
 	return wm
 }
 
 func Default(staticFS fs.FS) *WebMaster {
-	wm := New(WebMasterConfig{
-		EnableAndroidDiscover: true,
-	}, staticFS)
-	return wm
+	return New(staticFS)
 }
 
 func (wm *WebMaster) setRouter() {
 	// gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
+	r := gin.New()
+	// Periodic local readiness checks must not flood the Android UI log.
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/healthz"}}), gin.Recovery())
 
 	// 前端资源是 //go:embed 进二进制的：升级后浏览器若沿用缓存的旧 HTML/JS，
 	// 会出现"按钮在但点了没反应"（旧页面没有新脚本标签）这类极难排查的现象。
@@ -77,6 +64,8 @@ func (wm *WebMaster) setRouter() {
 		ctx.FileFromFS("unlock.html", http.FS(wm.staticFS))
 	})
 	r.POST("/api/unlock", wm.handleUnlock)
+	// Non-sensitive readiness marker used by the Android service, even with PIN enabled.
+	r.GET("/healthz", func(c *gin.Context) { c.String(200, "WebScrcpy ready") })
 
 	r.GET("/", func(ctx *gin.Context) {
 		ctx.Redirect(302, "/console")
@@ -90,7 +79,7 @@ func (wm *WebMaster) setRouter() {
 		screen.GET("/:id", func(ctx *gin.Context) {
 			ctx.FileFromFS("screen.html", http.FS(wm.staticFS))
 		})
-		screen.GET("/ws", wm.handleScreenWS)
+		screen.GET("/ws", wm.handleScreenTCP)
 	}
 
 	r.GET("/console", func(c *gin.Context) {
@@ -99,23 +88,11 @@ func (wm *WebMaster) setRouter() {
 	api := r.Group("/api")
 	{
 		api.GET("/device/list", wm.handleListDevices)
-		api.POST("/device/connect", wm.handleConnectDevice)
-		api.POST("/device/pair", wm.handlePairDevice)
 		api.GET("/device/configDescription", wm.handleDeviceConfigDescription)
 		// api.GET("/generalConfigDescription", wm.handleGeneralConfigDescription)
 
 		// api.POST("/device/discovery", wm.handleListDevicesDiscoveried)
 		// api.POST("/setPIN", wm.handleSetPIN)
-
-		// 统一设备管理（USB / Wi-Fi）：设备列表、事件日志、命名与连接控制
-		api.GET("/adb/devices", wm.handleADBDevices)
-		api.GET("/adb/events", wm.handleADBEvents)
-		api.POST("/adb/usb/rescan", wm.handleADBRescanUSB)
-		api.POST("/adb/device/name", wm.handleADBSetName)
-		api.POST("/adb/device/wifi", wm.handleADBAddWiFi)
-		api.POST("/adb/device/remove", wm.handleADBRemove)
-		api.POST("/adb/device/disconnect", wm.handleADBDisconnect)
-		api.POST("/adb/device/reconnect", wm.handleADBReconnect)
 
 		// 受控端背光（隐私保护：屏幕黑，但不锁屏，串流照常）
 		api.POST("/screen/backlight", wm.handleBacklight)
@@ -127,19 +104,11 @@ func (wm *WebMaster) setRouter() {
 func (wm *WebMaster) SetPIN(pin string) {
 	// Set the PIN for web access
 	// This is a placeholder implementation
-	log.Printf("PIN set to: %s", pin)
+	log.Printf("PIN authentication enabled: %t", pin != "")
 	wm.pin = pin
 }
 
 func (wm *WebMaster) Serve(host, port string) {
-	// if wm.config.EnableAndroidDiscover {
-	// 	go wm.AndroidDevicesDiscovery()
-	// }
-	// 统一设备管理器：USB 热插拔、RSA 授权状态与无线重连都由它跟踪。
-	// 本机 root 模式下没有 adb，不需要它。
-	if !utils.IsLocalRootMode() {
-		android.GetManager().Start()
-	}
 	wm.setRouter()
 	err := wm.router.Run(host + ":" + port)
 	if err != nil {

@@ -17,12 +17,6 @@ func ConfigDescription() []ConfigParamDescription {
 			Default:     true,
 			Description: "Use local timestamp instead of device timestamp. This may reduce latency but the video may be less smooth.",
 		},
-		{
-			Name:        "websocket_instead_of_webrtc",
-			Type:        "boolean",
-			Required:    true,
-			Default:     false,
-			Description: "Use WebSocket instead of WebRTC for streaming. (Now developing, no real effect yet)",
-		},
+
 	}
 }

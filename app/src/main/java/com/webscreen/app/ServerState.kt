@@ -11,42 +11,66 @@ object ServerState {
 
     const val MAX_LOG_LINES = 500
 
+    enum class Phase { STOPPED, STARTING, RUNNING, STOPPING, ERROR }
+
+    data class Status(
+        val phase: Phase = Phase.STOPPED,
+        val revision: Long = 0,
+        val error: String? = null,
+        val sinceNanos: Long = System.nanoTime()
+    )
+
+    private const val START_WATCHDOG_NANOS = 60_000_000_000L
+
     @Volatile
-    var running: Boolean = false
+    var status = Status()
         private set
-
-    @Volatile
-    var startTime: Long = 0L
-
-    @Volatile
-    var exitCode: Int? = null
-
-    @Volatile
-    var lastError: String? = null
 
     private val logLines = ArrayDeque<String>()
     private val logLock = Any()
 
-    fun setRunning(value: Boolean, pid: Long = 0L) {
-        running = value
-        if (value) {
-            startTime = System.currentTimeMillis()
-            exitCode = null
-            lastError = null
-        } else {
-            startTime = 0L
-        }
+    @Synchronized
+    fun requestStart(): Long? {
+        if (status.phase == Phase.STARTING || status.phase == Phase.RUNNING || status.phase == Phase.STOPPING) return null
+        status = Status(Phase.STARTING, status.revision + 1)
+        return status.revision
     }
 
-    fun setExited(code: Int) {
-        exitCode = code
-        running = false
-        startTime = 0L
+    @Synchronized
+    fun requestStop(): Long? {
+        if (status.phase == Phase.STOPPING || status.phase == Phase.STOPPED) return null
+        status = Status(Phase.STOPPING, status.revision + 1)
+        return status.revision
+    }
+
+    @Synchronized
+    fun transition(revision: Long, phase: Phase, error: String? = null): Boolean {
+        if (status.revision != revision) return false
+        status = Status(phase, revision + 1, error)
+        return true
+    }
+
+    @Synchronized
+    fun reconcile(observed: Status, ready: Boolean, nowNanos: Long = System.nanoTime()): Boolean {
+        if (status != observed || observed.phase == Phase.STOPPING) return false
+        // HTTP evidence is authoritative, including during STARTING and after ERROR.
+        // A negative sample during startup is normal; only expire an orphaned request.
+        val next = when {
+            ready -> Phase.RUNNING
+            observed.phase == Phase.RUNNING -> Phase.STOPPED
+            observed.phase == Phase.STARTING &&
+                nowNanos - observed.sinceNanos >= START_WATCHDOG_NANOS -> Phase.ERROR
+            else -> observed.phase
+        }
+        if (next == observed.phase) return false
+        val error = if (next == Phase.ERROR) "启动状态超时，请查看日志" else null
+        status = Status(next, status.revision + 1, error)
+        return true
     }
 
     fun append(line: String) {
         // 同时写 logcat：服务在早期被杀时界面日志来不及显示，只能靠系统日志定位。
-        Log.i("WebScreen", line)
+        Log.i("WebScrcpy", line)
         synchronized(logLock) {
             if (logLines.size >= MAX_LOG_LINES) {
                 logLines.removeFirst()
@@ -58,25 +82,6 @@ object ServerState {
     fun snapshot(): List<String> = synchronized(logLock) { logLines.toList() }
 
     fun clearLog() = synchronized(logLock) { logLines.clear() }
-
-    /** PID of a running webscreen process, found through /proc. */
-    fun runningPid(): Int {
-        var best = 0
-        val proc = java.io.File("/proc")
-        val entries = proc.list() ?: return 0
-        for (entry in entries) {
-            val pid = entry.toIntOrNull() ?: continue
-            val cmdline = try {
-                java.io.File("/proc/$entry/cmdline").readText()
-            } catch (e: Exception) {
-                continue
-            }
-            if (cmdline.contains("webscreen/webscreen")) {
-                if (pid > best) best = pid
-            }
-        }
-        return best
-    }
 
     fun deviceSummary(): String = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}"
 }

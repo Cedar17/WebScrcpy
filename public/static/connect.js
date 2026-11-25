@@ -1,4 +1,5 @@
-const jitterBufferTargetMs = 0; // 0 is a cake
+// TCP/MSE live playback settings (seconds, except the watchdog interval).
+const tcpLatency = sync => sync ? {target:0.18, accelerate:0.30, seek:0.65, rate:1.10} : {target:0.08, accelerate:0.15, seek:0.35, rate:1.15};
 
 // Load CONFIG from sessionStorage if available, otherwise use URL params or defaults
 var CONFIG = (function () {
@@ -57,246 +58,223 @@ var CONFIG = (function () {
     };
 })();
 
-async function start() {
-    if (CONFIG.device_type === "none") {
-        console.error("No device configuration found. Please set up the device configuration in the console.");
-        showToast(i18n.t('error_no_device_config'), 3000);
-        return;
-    }
-    console.log("Starting WebRTC connection...");
-    const pc = new RTCPeerConnection();
-
-    // 1. Listen for remote tracks
-    pc.ontrack = function (event) {
-        if (event.track.kind === 'video') {
-            const el = document.getElementById('remoteVideo');
-            el.srcObject = event.streams[0];
-
-            el.addEventListener('loadedmetadata', triggerCheck);
-            el.addEventListener('resize', triggerCheck);
-        } else if (event.track.kind === 'audio') {
-            const audioEl = document.createElement('audio');
-            audioEl.srcObject = event.streams[0];
-            audioEl.autoplay = true;
-            document.body.appendChild(audioEl);
-        }
-    };
-
-    // 2. Add a recvonly Transceiver
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-
-    // Add data channel for control messages if needed
-    const dataChannelOrdered = pc.createDataChannel("control-ordered" ,{
-        ordered: true,
-    });
-    const dataChannelUnordered = pc.createDataChannel("control-unordered" ,{
-        ordered: false,
-        // maxRetransmits: 0,
-    });
-    window.dataChannelOrdered = dataChannelOrdered;
-    window.dataChannelUnordered = dataChannelUnordered;
-    dataChannelUnordered.addEventListener('message', (event) => {
-        console.log("DataChannel Unordered Message:", event.data);
-        const view = new Uint8Array(event.data);
-            const decoder = new TextDecoder();
-            // console.log("Received binary message, type:", view[0]);
-            switch (view[0]) {
-                case 0x17: // TYPE_CLIPBOARD_DATA
-                    const text = decoder.decode(view.slice(1));
-                    console.log("Clipboard from device:", text);
-                    // Copy to browser clipboard
-                    try {
-                        navigator.clipboard.writeText(text).catch(err => {
-                            console.error('Failed to write to clipboard:', err);
-                        });
-                    } catch (e) {
-                        console.error('Clipboard API not available:', e);
-                        console.log("HTTPS is required for clipboard access.");
-                    }
-                    break;
-                case 0x64: // TYPE_TEXT_MSG
-                    const textMsg = decoder.decode(view.slice(1));
-                    console.log("Text message from agent:", textMsg);
-                    showToast(textMsg, 3000);
-                    break;
-                default:
-                    console.warn("Unknown binary message type:", view[0]);
-                }
-        }
-    )
-    
-
-
-    // 3. Create Offer
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    // 4. Wait ICE
-    await new Promise(resolve => {
-        if (pc.iceGatheringState === 'complete') resolve();
-        else pc.onicecandidate = e => { if (!e.candidate) resolve(); }
-    });
-
-    // 5. Establish WebSocket connection
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Construct URL matching the hardcoded config to satisfy backend check
-    const wsUrl = `${protocol}//${window.location.host}/screen/ws`;
-
-    window.ws = new WebSocket(wsUrl);
-    window.ws.binaryType = "arraybuffer";
-
-    window.ws.onopen = () => {
-        console.log('WebSocket connected');
-        // 发送 Config 和 SDP
-        console.log("config:", CONFIG);
-        const config = {
-            ...CONFIG,
-            sdp: pc.localDescription.sdp
-        };
-        console.log(CONFIG.driver_config)
-        window.ws.send(JSON.stringify(config));
-    };
-    window.ws.onmessage = async (event) => {
-        // if (typeof event.data === 'string') {
-            const message = JSON.parse(event.data);
-            console.log("Received message status:", message.status);
-            switch (message.status) {
-                case 'ok':
-                    switch (message.stage) {
-                        case 'webrtc_init':
-                            let answerSdp = message.sdp;
-                            console.log("Received SDP Answer");
-                            if (!answerSdp.length) {
-                                console.error("Empty SDP Answer received");
-                                showToast(i18n.t('error_empty_sdp_answer'), 2000);
-                                console.error("WebRTC connection cannot be established without a valid SDP answer. This may be the browser not supporting the required codecs (H264/H265).");
-                                return;
-                            }
-
-                            // for edge browser compatibility, format the SDP properly
-                            let formattedSdp = answerSdp
-                                .split(/\r\n|\r|\n/)
-                                .map(line => line.trim())
-                                .filter(line => line.length > 0)
-                                .join('\r\n');
-                            // formattedSdp += '\r\n';
-                            if (!formattedSdp.endsWith('\r\n')) {
-                                formattedSdp += '\r\n';
-                            }
-                            // 设置 Answer
-                            await pc.setRemoteDescription(new RTCSessionDescription({
-                                type: 'answer',
-                                sdp: formattedSdp
-                            }));
-                            console.log("WebRTC connection established");
-                            break;
-                        case 'webrtc_metainfo':
-                            const capabilities = message.capabilities;
-                            const media_meta = message.media_meta;
-                            console.log("Driver Capabilities:", capabilities);
-                            console.log("Media Meta:", media_meta);
-                            // Update UI based on capabilities
-                            await updateUIBasedOnCapabilities(capabilities);
-                            setInterval(() => force_sync(pc), 1000);
-                            setTimeout(() => {
-                                let rect = remoteVideo.getBoundingClientRect();
-                                // console.log("Initial video size:", rect.width, "x", rect.height);
-                                // updateVideoCache();
-                                // console.log(rect.width / rect.height, media_meta.width / media_meta.height);
-                                if (rect.width / rect.height != media_meta.width / media_meta.height) {
-                                    let p = createRequestKeyFramePacket();
-                                    ws.send(p);
-                                }
-                            }, 2000);
-                            pc.getReceivers().forEach(receiver => {
-                                if (receiver.track.kind === 'video') {
-                                    if (receiver.jitterBufferTarget !== undefined) {
-                                        receiver.jitterBufferTarget = jitterBufferTargetMs;
-                                    }
-                                    console.log('✓ (playoutDelayHint=', receiver.playoutDelayHint, ', jitterBufferTarget=', receiver.jitterBufferTarget, ')');
-                                }
-                            });
-                            break;
-                        default:
-                            break;
-                    }
-                    break;
-                case 'error':
-                    console.error("Error from server:", message);
-                    showToast(i18n.t('error_from_server', { msg: message.message }), 2000);
-                    break;
-                default:
-                    console.warn("Unknown message status:", message.status);
-            }
-
-    };
-}
+// Same-origin WebSocket: original control packets and timestamped media.
+let tcpCurrent = null;
+let tcpRetry = 0;
+let tcpReconnect = null;
+let tcpStopped = false;
+let tcpUI = null;
 
 function sendDataChannelMessage(channel, msg) {
-    // console.log("sendDataChannelMessage:", channel, msg);
-    if (channel && channel.readyState === 'open') {
-        // console.log("Sending message via DataChannel:", channel.label);
-        channel.send(msg);
-    }
+    if (channel && channel.readyState === 'open') channel.send(msg);
 }
 
-let lastJitterDelay = 0;
-let lastEmittedCount = 0;
-
-async function force_sync(pc) {
-    if (!pc) {
-        console.warn("RTCPeerConnection is not defined. Cannot force sync.");
+function tcpFeedback(data) {
+    if (!data.length) return;
+    const message = new TextDecoder().decode(data.subarray(1));
+    if (data[0] === 0x17) {
+        if (navigator.clipboard) navigator.clipboard.writeText(message).catch(() => tcpCopyFallback(message));
+        else tcpCopyFallback(message);
+    } else if (data[0] === 0x64) showToast(message, 3000);
+}
+function tcpCopyFallback(message) {
+    const field = document.createElement('textarea');
+    field.value = message;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (_) {}
+    field.remove();
+    if (!copied) window.prompt('Copy from device:', message);
+}
+function tcpClose() {
+    const s = tcpCurrent;
+    tcpCurrent = null;
+    if (!s) return;
+    clearInterval(s.watchdog);
+    s.socket.onclose = null;
+    s.socket.close();
+    if (s.muxer) s.muxer.destroy();
+    if (s.audio) s.audio.destroy();
+}
+function tcpRequestKey(s) {
+    if (s.socket.readyState === WebSocket.OPEN) s.socket.send(Uint8Array.of(0x63,0));
+}
+function tcpScheduleRetry() {
+    if (tcpStopped || tcpReconnect !== null) return;
+    tcpReconnect = setTimeout(() => {
+        tcpReconnect = null;
+        start();
+    }, Math.min(8000,500 * Math.pow(2,Math.min(tcpRetry++,4))));
+}
+function tcpFail(s, message, retry = true) {
+    if (tcpCurrent !== s) return;
+    if (message) showToast(message,3000);
+    tcpClose();
+    if (retry) tcpScheduleRetry();
+}
+function tcpCodecSupported(codec) {
+    if (codec === 'h265') return ['hvc1.1.6.L93.B0','hev1.1.6.L93.B0','hvc1.1.6.L153.B0'].some(c => MediaSource.isTypeSupported('video/mp4; codecs="'+c+'"'));
+    return ['avc1.640033','avc1.42E01E','avc1.4D401E'].some(c => MediaSource.isTypeSupported('video/mp4; codecs="'+c+'"'));
+}
+async function start() {
+    if (tcpStopped || tcpCurrent) return;
+    if (CONFIG.device_type === 'none') {
+        showToast(i18n.t('error_no_device_config'),3000);
         return;
-    };
-
-    // 获取 WebRTC 统计信息
-    const stats = await pc.getStats();
-
-    stats.forEach(report => {
-        // 找到视频接收通道的统计
-        if (report.type === 'inbound-rtp' && report.kind === 'video') {
-
-            // jitterBufferDelay 是累积的总延迟时间（秒）
-            // jitterBufferEmittedCount 是累积的总帧数
-            // 我们需要计算“当前”的平均延迟，所以要减去上一次的值取差值
-
-            const deltaDelay = report.jitterBufferDelay - lastJitterDelay;
-            const deltaCount = report.jitterBufferEmittedCount - lastEmittedCount;
-
-            // 更新历史值
-            lastJitterDelay = report.jitterBufferDelay;
-            lastEmittedCount = report.jitterBufferEmittedCount;
-
-            // 计算最近一秒内的平均帧延迟
-            let currentDelay = 0;
-            if (deltaCount > 0) {
-                currentDelay = deltaDelay / deltaCount;
+    }
+    if (!window.MediaSource || !window.JMuxer || !tcpCodecSupported('h264')) {
+        showToast('This browser cannot play H.264 using Media Source Extensions.',5000);
+        return;
+    }
+    const config = {...CONFIG,driver_config:{...CONFIG.driver_config}};
+    if (config.driver_config.video_codec === 'h265' && !tcpCodecSupported('h265')) {
+        config.driver_config.video_codec = 'h264';
+        showToast('H.265 unavailable in this browser; using H.264.',3000);
+    }
+    const video = document.getElementById('remoteVideo');
+    video.srcObject = null;
+    const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')+location.host+'/screen/ws');
+    socket.binaryType = 'arraybuffer';
+    window.ws = socket;
+    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,lastVideo:Date.now(),opened:Date.now(),watchdog:null,firstFrame:false};
+    tcpCurrent = s;
+    const channel = label => ({
+        label,
+        get readyState() { return s.ready && socket.readyState===WebSocket.OPEN ? 'open':'closed'; },
+        get bufferedAmount() { return socket.bufferedAmount; },
+        send(data) {
+            if (this.readyState !== 'open') return;
+            if (socket.bufferedAmount > 1024*1024) {
+                tcpFail(s,'TCP control connection congested');
+                return;
             }
-
-            // let delay_ms = (currentDelay * 5000).toFixed(2);
-            // if (delay_ms > 50) {
-            //     console.log(`WebRTC Internal Delay: ${delay_ms} ms`);
-            // }
-
-            const videoEl = document.getElementById('remoteVideo');
-            if (!videoEl) return;
-
-            if (currentDelay > 0.1) {
-                if (videoEl.playbackRate !== 1.1) {
-                    // console.log("轻微延迟，启用 1.1x 倍速追赶");
-                    videoEl.playbackRate = 1.1;
-                }
-            }
-            // 延迟恢复正常后，切回 1.0
-            else if (currentDelay <= 0.1 && videoEl.playbackRate !== 1.0) {
-                // console.log("延迟恢复正常，切回 1.0x");
-                videoEl.playbackRate = 1.0;
-            }
+            socket.send(data);
         }
     });
-};
-
+    window.dataChannelOrdered = channel('control-ordered');
+    window.dataChannelUnordered = channel('control-unordered');
+    socket.onopen = () => socket.send(JSON.stringify(config));
+    socket.onerror = () => console.warn('[tcp] websocket error');
+    socket.onclose = () => tcpFail(s,'TCP connection disconnected');
+    function feedVideo(payload, pts, flags) {
+        if (flags & 1) {
+            s.paramBytes += payload.length;
+            if (s.paramBytes > 1024*1024) throw Error('Oversized video configuration');
+            s.params.push(payload.slice());
+            return;
+        }
+        if (s.params.length) {
+            const frame = new Uint8Array(s.paramBytes+payload.length);
+            let off=0;
+            for (const p of s.params) { frame.set(p,off); off+=p.length; }
+            frame.set(payload,off);
+            payload=frame;
+            s.params=[]; s.paramBytes=0;
+        }
+        const arrival = performance.now();
+        const stamp = config.use_local_timestamp ? arrival*1000 : pts;
+        const fps = Math.max(1,Number(config.driver_config.max_fps)||60);
+        let duration = s.lastPTS===null ? 1000/fps : (stamp-s.lastPTS)/1000;
+        s.lastPTS=stamp;
+        // A static screen can have very large PTS gaps; do not create seconds of buffered video.
+        const nominal = 1000/fps;
+        const idle = s.lastArrival === null ? 0 : arrival-s.lastArrival;
+        s.lastArrival = arrival;
+        if (duration<=0 || duration>Math.max(120,4*nominal) || idle>Math.max(120,4*nominal)) duration=nominal;
+        duration = Math.min(duration,config.av_sync ? Math.max(120,nominal) : Math.max(40,2*nominal));
+        duration=Math.max(1,Math.round(duration));
+        const item={video:payload,duration,isLastVideoFrameComplete:true};
+        if (!s.ready) {
+            s.queueBytes+=payload.length;
+            if(s.queueBytes>16*1024*1024 || s.queue.length>=120) throw Error('Video player initialization timed out');
+            s.queue.push(item);
+        } else {
+            s.muxer.feed(item);
+        }
+        s.lastVideo=Date.now();
+        s.firstFrame=true;
+        tcpRetry=0;
+        if(video.paused) video.play().catch(()=>{});
+    }
+    socket.onmessage = event => {
+        if (tcpCurrent!==s) return;
+        try {
+            if (typeof event.data==='string') {
+                const msg=JSON.parse(event.data);
+                if (msg.status==='error') { tcpFail(s,msg.message,false); return; }
+                if (msg.stage!=='tcp_metainfo' || s.muxer) return;
+                const caps=msg.capabilities||{};
+                const meta=msg.media_meta||{};
+                const codec=(meta.video_codec||config.driver_config.video_codec||'h264').toLowerCase();
+                if (!tcpCodecSupported(codec)) { tcpFail(s,'Unsupported stream codec: '+codec,false); return; }
+                s.muxer=new JMuxer({
+                    node:video,mode:'video',videoCodec:codec==='h265'?'H265':'H264',
+                    fps:Number(meta.fps)||Number(config.driver_config.max_fps)||60,
+                    flushingTime:0,maxDelay:60000,clearBuffer:true,
+                    onReady:() => {
+                        if (tcpCurrent!==s) return;
+                        s.ready=true;
+                        for(const item of s.queue) s.muxer.feed(item);
+                        s.queue=[]; s.queueBytes=0;
+                        video.play().catch(()=>{});
+                    },
+                    onUnsupportedCodec: codec => tcpFail(s,'Unsupported video codec: '+codec,false),
+                    onError: e => {console.warn('[tcp video]',e);tcpRequestKey(s);}
+                });
+                if(caps.can_audio) {
+                    if(window.TCPAudio && TCPAudio.supported() && String(meta.audio_codec||'opus').trim()==='opus') {
+                        s.audio=new TCPAudio(config.av_sync,video);
+                    } else showToast('Audio codec is not supported by this browser.',3000);
+                }
+                if(!tcpUI) tcpUI=updateUIBasedOnCapabilities(caps).catch(e=>{tcpUI=null;console.error(e);});
+                return;
+            }
+            const data=new Uint8Array(event.data);
+            if(data.length<10) return;
+            const pts=Number(new DataView(data.buffer,data.byteOffset,data.byteLength).getBigUint64(2,false));
+            const payload=data.subarray(10);
+            if(data[0]===1 && s.muxer) feedVideo(payload,pts,data[1]);
+            else if(data[0]===2 && s.audio) s.audio.feed(payload,pts,!!(data[1]&1));
+            else if(data[0]===3) tcpFeedback(payload);
+        } catch(e) { console.error('[tcp]',e); tcpFail(s,e.message); }
+    };
+    s.watchdog=setInterval(()=>{
+        if(tcpCurrent!==s) return;
+        if(!s.firstFrame && Date.now()-s.opened>30000) {tcpFail(s,'No video frames received');return;}
+        if(s.ready && video.buffered.length) {
+            const end=video.buffered.end(video.buffered.length-1);
+            const lag=end-video.currentTime;
+            const p = tcpLatency(config.av_sync);
+            if (!video.seeking && lag>p.seek) {
+                video.playbackRate=1;
+                video.currentTime=Math.max(video.buffered.start(video.buffered.length-1),end-p.target);
+            } else if (!video.seeking) {
+                const rate=lag>p.accelerate?p.rate:1;
+                if(video.playbackRate!==rate) video.playbackRate=rate;
+            }
+        }
+    },100);
+}
+window.addEventListener('pagehide',()=>{
+    tcpStopped=true;
+    if(tcpReconnect!==null) clearTimeout(tcpReconnect);
+    tcpReconnect=null;
+    tcpClose();
+});
+window.addEventListener('pageshow',event=>{
+    if(event.persisted){tcpStopped=false;start();}
+});
+document.addEventListener('DOMContentLoaded',()=>{
+    const video=document.getElementById('remoteVideo');
+    if(video) {
+        const resize=()=>{if(typeof updateVideoCache==='function') updateVideoCache();if(typeof triggerCheck==='function') triggerCheck();};
+        video.addEventListener('loadedmetadata',resize);
+        video.addEventListener('resize',resize);
+    }
+});
 
 function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -325,12 +303,6 @@ async function updateUIBasedOnCapabilities(caps) {
     if (caps.can_control) {
         // Load control scripts
         try {
-            if (caps.is_linux) {
-                await loadScript('/static/capabilities/linux_mouse.js');
-                await loadScript('/static/capabilities/keyboard.js');
-                await loadScript('/static/capabilities/touch.js');
-                // show('.feature-linux-mouse');
-            }
             if (caps.is_android) {
                 await loadScript('/static/capabilities/keyboard.js');
                 await loadScript('/static/capabilities/touch.js');

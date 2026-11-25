@@ -230,21 +230,9 @@ func (da *ScrcpyDriver) stopLocalServer() {
 }
 
 // cleanupTunnel releases the transport resources of the current session.
-func (da *ScrcpyDriver) cleanupTunnel() {
-	if da.localMode {
-		da.stopLocalServer()
-		return
-	}
-	da.adbClient.ReverseRemove(fmt.Sprintf("localabstract:scrcpy_%s", da.scid))
-}
+func (da *ScrcpyDriver) cleanupTunnel() { da.stopLocalServer() }
 
-// supportOpusAudio reports whether the device can encode opus audio.
-func (da *ScrcpyDriver) supportOpusAudio() bool {
-	if da.localMode {
-		return LocalSupportsOpusAudio()
-	}
-	return da.adbClient.SupportOpusAudio()
-}
+func (da *ScrcpyDriver) supportOpusAudio() bool { return LocalSupportsOpusAudio() }
 
 // ---------------------------------------------------------------------------
 // Local codec probing (the adb path runs `adb shell grep` on the same files)

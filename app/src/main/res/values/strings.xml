@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">WebScreen</string>
+    <string name="app_name">WebScrcpy</string>
     <string name="subtitle">在浏览器里看这台手机的屏幕</string>
 
     <string name="label_root">ROOT</string>
     <string name="root_granted">● 已获得 Root</string>
-    <string name="need_root">需要 Root 权限才能运行 WebScreen</string>
+    <string name="need_root">需要 Root 权限才能运行 WebScrcpy</string>
 
     <string name="label_server">SERVER</string>
+    <string name="server_starting">● Starting…</string>
+    <string name="server_stopping">● Stopping…</string>
     <string name="server_running">● Running</string>
     <string name="server_stopped">● Stopped</string>
     <string name="server_error">● 启动失败：%1$s</string>
@@ -23,14 +25,14 @@
     <string name="invalid_pin">PIN 必须是 6 位数字，或留空</string>
     <string name="label_autostart">开机自动启动</string>
 
-    <string name="action_start">启动 WebScreen</string>
-    <string name="action_stop">停止 WebScreen</string>
+    <string name="action_start">启动 WebScrcpy</string>
+    <string name="action_stop">停止 WebScrcpy</string>
 
     <string name="label_log">运行日志</string>
     <string name="action_clear">清空</string>
     <string name="log_empty">（暂无输出）</string>
 
-    <string name="notification_channel">WebScreen 服务</string>
-    <string name="notification_channel_desc">在前台保持 webscreen 服务器运行</string>
+    <string name="notification_channel">WebScrcpy 服务</string>
+    <string name="notification_channel_desc">在前台保持 WebScrcpy 服务器运行</string>
     <string name="notification_running">运行中 · %1$s</string>
 </resources>

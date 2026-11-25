@@ -159,6 +159,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/button_bg"
                 android:text="@string/action_start"
+                android:textAllCaps="false"
                 android:textColor="@color/text_primary" />
 
             <Button
@@ -169,6 +170,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/button_bg"
                 android:text="@string/action_stop"
+                android:textAllCaps="false"
                 android:textColor="@color/text_primary" />
         </LinearLayout>
 

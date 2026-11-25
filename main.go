@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"webscreen/utils"
 	"webscreen/webservice"
 )
 
@@ -21,7 +20,7 @@ func main() {
 	pin := flag.String("pin", "", "initial PIN for web access")
 	// local-root runs webscreen on the Android device itself (needs root):
 	// no adb is used, the scrcpy server is started locally with app_process.
-	localRoot := flag.Bool("local-root", false, "run on the device itself (root, no adb): the local Android device is streamed")
+	flag.Bool("local-root", true, "deprecated compatibility flag; only local Android mode is supported")
 	flag.Parse()
 	// pin should be 6 digits and only digits
 	if *pin != "" {
@@ -36,13 +35,10 @@ func main() {
 	}
 
 	if *pin == "" {
-		log.Println("Warning: Since v1.3.6, the default PIN is empty, which means no PIN is required to access the web interface.")
+		log.Println("Warning: no PIN is configured; web access is unauthenticated.")
 	}
 
-	utils.SetLocalRootMode(*localRoot)
-	if utils.IsLocalRootMode() {
-		log.Println("On-device mode enabled: adb is not used, the local Android device will be streamed")
-	}
+	log.Println("WebScrcpy: local Android mode (root, no adb)")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

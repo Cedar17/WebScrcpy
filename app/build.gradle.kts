@@ -38,7 +38,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = gitVersionCode()
-        versionName = "1.2.15"
+        versionName = "1.3.0"
     }
 
     signingConfigs {
@@ -96,4 +96,8 @@ android {
     androidResources {
         noCompress += "so"
     }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }

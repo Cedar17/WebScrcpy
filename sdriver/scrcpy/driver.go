@@ -8,10 +8,8 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,12 +40,9 @@ type ScrcpyDriver struct {
 
 	ctx       context.Context
 	cancel    context.CancelFunc
-	adbClient *ADBClient
 	scid      string
 	// socketName string
 
-	// localMode is true when webscreen runs on the device itself (root, no adb)
-	localMode bool
 	// handle of the locally started scrcpy server
 	localServerCmd *exec.Cmd
 	localServerCtx context.Context
@@ -84,8 +79,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		},
 	}
 	da.ctx, da.cancel = context.WithCancel(context.Background())
-	da.localMode = utils.IsLocalRootMode()
-	da.adbClient = NewADBClient(config["deviceID"], da.scid, da.ctx)
 
 	// scrcpy defaults video/audio/control to true. The web UI omits them
 	// entirely for a device that was never configured, which would leave the
@@ -110,69 +103,18 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		return nil, err
 	}
 
-	localPort := SCRCPY_PROXY_PORT_DEFAULT
-	scrcpyServerPath := SCRCPY_SERVER_ANDROID_DST
-
-	if da.localMode {
-		// Running on the device itself: no adb, no reverse tunnel and no push.
-		// The scrcpy server is started locally and listens on an abstract
-		// socket that we connect to directly.
-		scrcpyServerPath, err = writeLocalScrcpyServer(data)
-		if err != nil {
-			log.Printf("[scrcpy] store scrcpy-server failed: %v", err)
-			return nil, err
-		}
-		log.Printf("[scrcpy] on-device mode (root, no adb), scrcpy-server stored at %s", scrcpyServerPath)
-	} else {
-		SCRCPY_SERVER_LOCAL_PATH := os.TempDir() + "/scrcpy-server"
-		err = os.WriteFile(SCRCPY_SERVER_LOCAL_PATH, data, 0755)
-		if err != nil {
-			log.Printf("[scrcpy] write scrcpy-server to local file failed: %v", err)
-			return nil, err
-		}
-
-		da.adbClient.ReverseRemove(fmt.Sprintf("localabstract:scrcpy_%s", da.scid))
-		err = da.adbClient.Reverse(fmt.Sprintf("localabstract:scrcpy_%s", da.scid), "tcp:"+localPort)
-		if err != nil {
-			log.Printf("[scrcpy] Set up reverse tunnel failed: %v", err)
-			// listener.Close()
-			return nil, err
-		}
-		log.Printf("[scrcpy] set up reverse tunnel success: localabstract:scrcpy_%s -> tcp:%s", da.scid, localPort)
-
-		err = da.adbClient.PushScrcpyServer(SCRCPY_SERVER_LOCAL_PATH, SCRCPY_SERVER_ANDROID_DST)
-		if err != nil {
-			log.Printf("[scrcpy] Push scrcpy-server failed: %v", err)
-			return nil, err
-		}
-		os.Remove(SCRCPY_SERVER_LOCAL_PATH)
-	}
-
+	scrcpyServerPath, err := writeLocalScrcpyServer(data)
+	if err != nil { return nil, err }
 	if !da.supportOpusAudio() {
 		config["audio"] = "false"
 		log.Println("[scrcpy] Device does not support Opus audio encoding, disabling audio.")
 		da.ControlChan <- sdriver.TextMsgEvent{Msg: "[scrcpy] Device does not support Opus audio encoding, disabling audio."}
 	}
 
-	var listener net.Listener
-	if da.localMode {
-		// The scrcpy server accepts every stream socket before sending the
-		// device metadata, so tell the listener how many connections to open.
-		streams := 1 // video is always on for this driver
-		if config["audio"] == "true" {
-			streams++
-		}
-		if config["control"] == "true" {
-			streams++
-		}
-		listener = newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
-	} else {
-		listener, err = net.Listen("tcp", ":"+localPort)
-		if err != nil {
-			log.Printf("[scrcpy] Listen port failed: %v", err)
-			return nil, err
-		}
-	}
+	streams := 1
+	if config["audio"] == "true" { streams++ }
+	if config["control"] == "true" { streams++ }
+	var listener net.Listener = newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
 	// 失败时必须收尾：listener 不关会让 tcp 端口 / 抽象 socket 一直被占，
 	// reverse 隧道与已建立的连接也会残留下来，下一次会话就会撞端口或连到残留的
 	// server，在读取设备元数据时再次拿到 EOF —— 这正是用户偶尔看到的
@@ -195,7 +137,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		da.cleanupTunnel()
 	}()
 
-	// da.adbClient.cancel()
 	log.Printf("[scrcpy] driver config: %v", config)
 	video_codec_options := ""
 	max_size, err := strconv.Atoi(config["max_size"])
@@ -223,127 +164,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		video_bit_rate = 4_000_000
 		config["video_bit_rate"] = "4M"
 	}
-	codecConfigStr := config["webrtc_codec_level"]
-	if codecConfigStr != "" {
-		parts := strings.Split(codecConfigStr, "||")
-		mimeType := parts[1]
-		sdpFmtpLine := parts[2]
-		if strings.EqualFold(mimeType, "video/AV1") {
-			log.Println("AV1 Main 5.1")
-			// --- AV1 ---
-			// PAYLOAD_TYPE_AV1_PROFILE_MAIN_5_1
-			video_codec_options += "profile=1"
-			kv := strings.Split(sdpFmtpLine, ";")
-			for _, item := range kv {
-				item = strings.TrimSpace(item)
-				if strings.HasPrefix(item, "level-idx=") {
-					levelStr := strings.TrimPrefix(item, "level-idx=")
-					levelID64, err := strconv.ParseUint(levelStr, 10, 32)
-					if err != nil {
-						log.Printf("Failed to parse level-idx: %v", err)
-						return nil, err
-					}
-					levelID := uint(levelID64)
-					switch levelID {
-					case 8:
-						log.Println("AV1 Level 4.0")
-						max_size = min(max_size, 1920)
-						video_bit_rate = min(video_bit_rate, 12_000_000)
-					case 9:
-						log.Println("AV1 Level 4.1")
-						max_size = min(max_size, 1920)
-						max_fps = min(max_fps, 60)
-						video_bit_rate = min(video_bit_rate, 20_000_000)
-					case 12:
-						log.Println("AV1 Level 5.0")
-						video_bit_rate = min(video_bit_rate, 30_000_000)
-					case 13:
-						log.Println("AV1 Level 5.1")
-						video_bit_rate = min(video_bit_rate, 40_000_000)
-					case 14:
-						log.Println("AV1 Level 5.2")
-						video_bit_rate = min(video_bit_rate, 60_000_000)
-					case 15:
-						log.Println("AV1 Level 5.3")
-						video_bit_rate = min(video_bit_rate, 80_000_000)
-					default:
-						log.Println("AV1 Unexpected Level ID:", levelID)
-						if levelID < 8 {
-							video_bit_rate = min(video_bit_rate, 10_000_000)
-						}
-						if levelID > 15 {
-							video_bit_rate = min(video_bit_rate, 80_000_000)
-						}
-					}
-				}
-			}
-		} else if strings.EqualFold(mimeType, "video/H265") || strings.EqualFold(mimeType, "video/HEVC") {
-			// --- H.265 (HEVC) ---
-			// Main Profile
-			video_codec_options += "profile=1"
-			// FMTP example: "profile-id=1;tier-flag=0;level-id=123"
-			// level-id=123 (Level 4.1), level-id=153 (Level 5.1)
-			var levelID uint
-			kv := strings.Split(sdpFmtpLine, ";")
-			for _, item := range kv {
-				item = strings.TrimSpace(item)
-				if strings.HasPrefix(item, "level-id=") {
-					levelStr := strings.TrimPrefix(item, "level-id=")
-					levelID64, err := strconv.ParseUint(levelStr, 10, 32)
-					if err != nil {
-						log.Printf("Failed to parse level-id: %v", err)
-						return nil, err
-					}
-					levelID = uint(levelID64)
-					break
-				}
-			}
-			switch levelID {
-			case 123:
-				log.Println("H.265 Level 4.1")
-				max_size = min(max_size, 1920)
-				max_fps = min(max_fps, 60)
-				video_bit_rate = min(video_bit_rate, 20_000_000)
-			case 150:
-				log.Println("H.265 Level 5.0")
-				video_bit_rate = min(video_bit_rate, 25_000_000)
-			case 153:
-				log.Println("H.265 Level 5.1")
-				video_bit_rate = min(video_bit_rate, 40_000_000)
-			case 156:
-				log.Println("H.265 Level 5.2")
-				video_bit_rate = min(video_bit_rate, 50_000_000)
-			case 180:
-				log.Println("H.265 Level 6.0")
-				video_bit_rate = min(video_bit_rate, 60_000_000)
-			default:
-				log.Println("H.265 Unexpected Level ID:", levelID)
-				if levelID < 123 {
-					video_bit_rate = min(video_bit_rate, 10_000_000)
-				}
-				if levelID > 180 {
-					video_bit_rate = min(video_bit_rate, 60_000_000)
-				}
-			}
-		} else if strings.EqualFold(mimeType, "video/H264") {
-			// --- H.264 (AVC) ---
-			// profile-level-id : Baseline (42), Main (4d), High (64)
-			// level-asymmetry-allowed=1 is supposed to be always set
-			video_bit_rate = min(video_bit_rate, 300_000_000)
-			if strings.Contains(sdpFmtpLine, "profile-level-id=42") {
-				log.Println("H.264 Baseline Profile")
-				video_codec_options += "profile=1"
-			} else if strings.Contains(sdpFmtpLine, "profile-level-id=4d") {
-				log.Println("H.264 Main Profile")
-				video_codec_options += "profile=2"
-			} else if strings.Contains(sdpFmtpLine, "profile-level-id=64") {
-				log.Println("H.264 High Profile")
-				video_codec_options += "profile=8"
-			}
-		}
-
-	}
-
+	// TCP has no SDP negotiation; retain explicitly selected encoder options.
 	video_codec_options_user := config["video_codec_options"]
 	if video_codec_options_user != "" {
 		video_codec_options = video_codec_options_user
@@ -384,23 +205,11 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		// log.Printf("start_app: %s", config["start_app"])
 	}
 
-	if da.localMode {
-		// With tunnel_forward the scrcpy server creates the listener itself
-		// (LocalServerSocket -> abstract socket) and accepts the three
-		// connections on it. The dummy byte must be turned off so the stream
-		// framing stays identical to the adb (reverse tunnel) mode.
-		options["tunnel_forward"] = "true"
-		options["send_dummy_byte"] = "false"
-	}
-
-	if da.localMode {
-		if err := da.startLocalScrcpyServer(options); err != nil {
-			log.Printf("[scrcpy] start local scrcpy server failed: %v", err)
-			listener.Close()
-			return nil, err
-		}
-	} else {
-		da.adbClient.StartScrcpyServer(options)
+	options["tunnel_forward"] = "true"
+	options["send_dummy_byte"] = "false"
+	if err := da.startLocalScrcpyServer(options); err != nil {
+		listener.Close()
+		return nil, err
 	}
 	da.options = options
 	// log.Println("Scrcpy server started successfully")
