@@ -1,4 +1,5 @@
-const jitterBufferTargetMs = 0; // 0 is a cake
+// TCP/MSE live playback settings (seconds, except the watchdog interval).
+const tcpLatency = sync => sync ? {target:0.18, accelerate:0.30, seek:0.65, rate:1.10} : {target:0.08, accelerate:0.15, seek:0.35, rate:1.15};
 
 // Load CONFIG from sessionStorage if available, otherwise use URL params or defaults
 var CONFIG = (function () {
@@ -138,7 +139,7 @@ async function start() {
     const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')+location.host+'/screen/ws');
     socket.binaryType = 'arraybuffer';
     window.ws = socket;
-    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,params:[],paramBytes:0,queue:[],queueBytes:0,lastVideo:Date.now(),opened:Date.now(),watchdog:null,firstFrame:false};
+    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,lastVideo:Date.now(),opened:Date.now(),watchdog:null,firstFrame:false};
     tcpCurrent = s;
     const channel = label => ({
         label,
@@ -173,12 +174,17 @@ async function start() {
             payload=frame;
             s.params=[]; s.paramBytes=0;
         }
-        const stamp = config.use_local_timestamp ? performance.now()*1000 : pts;
+        const arrival = performance.now();
+        const stamp = config.use_local_timestamp ? arrival*1000 : pts;
         const fps = Math.max(1,Number(config.driver_config.max_fps)||60);
         let duration = s.lastPTS===null ? 1000/fps : (stamp-s.lastPTS)/1000;
         s.lastPTS=stamp;
         // A static screen can have very large PTS gaps; do not create seconds of buffered video.
-        if (duration<=0 || duration>200) duration=1000/fps;
+        const nominal = 1000/fps;
+        const idle = s.lastArrival === null ? 0 : arrival-s.lastArrival;
+        s.lastArrival = arrival;
+        if (duration<=0 || duration>Math.max(120,4*nominal) || idle>Math.max(120,4*nominal)) duration=nominal;
+        duration = Math.min(duration,config.av_sync ? Math.max(120,nominal) : Math.max(40,2*nominal));
         duration=Math.max(1,Math.round(duration));
         const item={video:payload,duration,isLastVideoFrameComplete:true};
         if (!s.ready) {
@@ -207,7 +213,7 @@ async function start() {
                 s.muxer=new JMuxer({
                     node:video,mode:'video',videoCodec:codec==='h265'?'H265':'H264',
                     fps:Number(meta.fps)||Number(config.driver_config.max_fps)||60,
-                    flushingTime:0,maxDelay:config.av_sync?500:250,clearBuffer:true,
+                    flushingTime:0,maxDelay:60000,clearBuffer:true,
                     onReady:() => {
                         if (tcpCurrent!==s) return;
                         s.ready=true;
@@ -241,10 +247,16 @@ async function start() {
         if(s.ready && video.buffered.length) {
             const end=video.buffered.end(video.buffered.length-1);
             const lag=end-video.currentTime;
-            if(lag>1.2) video.currentTime=Math.max(video.buffered.start(video.buffered.length-1),end-0.15);
-            else video.playbackRate=lag>0.35?1.1:1;
+            const p = tcpLatency(config.av_sync);
+            if (!video.seeking && lag>p.seek) {
+                video.playbackRate=1;
+                video.currentTime=Math.max(video.buffered.start(video.buffered.length-1),end-p.target);
+            } else if (!video.seeking) {
+                const rate=lag>p.accelerate?p.rate:1;
+                if(video.playbackRate!==rate) video.playbackRate=rate;
+            }
         }
-    },1000);
+    },100);
 }
 window.addEventListener('pagehide',()=>{
     tcpStopped=true;
