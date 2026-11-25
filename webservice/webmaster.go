@@ -21,6 +21,8 @@ type WebMaster struct {
 	// WSConns []*websocket.Conn
 
 	WebRTCManager *WebRTCManager
+	tcpMu sync.Mutex
+	tcpSessions map[string]*tcpSession
 	// ScreenSessions map[string]ScreenSession
 
 	pin                  string
