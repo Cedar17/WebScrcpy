@@ -18,7 +18,14 @@ func (sa *Agent) ServeVideoStream() {
 
 	// 如果没有 WebRTC 轨道，但有 WebSocket 回调，则走纯 WS 线路
 	if sa.videoTrack == nil {
-		if sa.OnVideoFrame != nil {
+		if sa.OnVideoEnd != nil {
+			defer sa.OnVideoEnd()
+		}
+		if sa.OnVideoBox != nil {
+			for box := range sa.videoCh {
+				sa.OnVideoBox(box)
+			}
+		} else if sa.OnVideoFrame != nil {
 			for vBox := range sa.videoCh {
 				sa.OnVideoFrame(vBox.Data)
 			}
@@ -79,7 +86,11 @@ func (sa *Agent) ServeAudioStream() {
 	}
 
 	if sa.audioTrack == nil {
-		if sa.OnAudioFrame != nil {
+		if sa.OnAudioBox != nil {
+			for box := range sa.audioCh {
+				sa.OnAudioBox(box)
+			}
+		} else if sa.OnAudioFrame != nil {
 			for aBox := range sa.audioCh {
 				sa.OnAudioFrame(aBox.Data)
 			}
