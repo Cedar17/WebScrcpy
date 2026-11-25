@@ -1,6 +1,7 @@
 package webservice
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -160,7 +161,7 @@ func tcpNALUs(data []byte) [][]byte {
 			continue
 		}
 		if start >= 0 && i > start {
-			units = append(units, data[start:i])
+			if i > start { units = append(units, data[start:i]) }
 		}
 		i += n
 		start = i
@@ -173,7 +174,11 @@ func tcpNALUs(data []byte) [][]byte {
 
 func (s *tcpSession) video(box sdriver.AVBox) {
 	if len(box.Data) == 0 { return }
-	m := tcpMedia(tcpVideo, box)
+	// The legacy RTP driver strips the leading start code on ordinary frames.
+	// MSE muxers require a complete Annex-B stream.
+	if !bytes.HasPrefix(box.Data, []byte{0, 0, 1}) && !bytes.HasPrefix(box.Data, []byte{0, 0, 0, 1}) {
+		box.Data = append([]byte{0, 0, 0, 1}, box.Data...)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended { return }
@@ -192,6 +197,10 @@ func (s *tcpSession) video(box sdriver.AVBox) {
 			s.parameters[typ] = append([]byte{0,0,0,1}, nal...)
 		}
 	}
+	// Cached IDR packets may carry NoDuration; they are video frames, not
+	// configuration-only packets, and must be delivered to the decoder.
+	if key { box.NoDuration = false }
+	m := tcpMedia(tcpVideo, box)
 	for c, ready := range s.clients {
 		if !ready {
 			if !key { continue }
@@ -214,7 +223,7 @@ func (s *tcpSession) audio(box sdriver.AVBox) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended { return }
-	if box.NoDuration { s.audioConfig = m }
+	if box.NoDuration || bytes.HasPrefix(box.Data, []byte("OpusHead")) { s.audioConfig = m }
 	for c := range s.clients { c.enqueue(m) }
 }
 
@@ -287,14 +296,8 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 	s.mu.Unlock()
 	if newSession {
 		go func() {
-			events := s.agent.FeedbackEvents()
-			for {
-				select {
-				case <-s.done: return
-				case event, ok := <-events:
-					if !ok { return }
-					s.feedback(event)
-				}
+			for event := range s.agent.FeedbackEventsUntil(s.done) {
+				s.feedback(event)
 			}
 		}()
 		if err := s.agent.StartChecked(); err != nil {

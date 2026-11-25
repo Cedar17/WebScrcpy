@@ -1,8 +1,10 @@
 # Webscreen
 
-在浏览器里查看并操控 Android 手机画面 —— 自托管、基于 WebRTC，Android 侧基于 [scrcpy](https://github.com/Genymobile/scrcpy)。
+在浏览器里查看并操控 Android 手机画面 —— 自托管、纯 TCP（HTTP / WebSocket），Android 侧基于 [scrcpy](https://github.com/Genymobile/scrcpy)。
 
-> 本仓库是 [huonwe/webscreen](https://github.com/huonwe/webscreen) 的增强分支：**保留上游全部功能**，并新增了下面这些能力。
+> `feature/local-tcp` 为实验性纯 TCP 分支：浏览器投屏不再依赖 WebRTC、ICE、STUN、TURN 或 UDP。当前正在进行 APK 构建和真机验证，不代表已完成全部功能验收。
+
+> 本仓库是 [huonwe/webscreen](https://github.com/huonwe/webscreen) 的增强分支：**以保留上游界面及功能为目标**，并新增了下面这些能力。
 
 ![screenshot](doc/assets/screenshot.png)
 
@@ -100,7 +102,18 @@ docker compose up -d
 ```
 
 默认端口 `8079`，可用 `-port 8080` 指定；支持 6 位 PIN（`-pin 555555`，默认为空）。
-客户端需要支持 WebRTC（H.264 High Profile 或 H.265 Main Profile）的浏览器。
+客户端需要支持 Media Source Extensions（MSE）及 H.264；H.265、Opus 音频取决于浏览器支持。前端播放器随 APK 打包，无需第三方服务。
+
+## 构建纯 TCP 测试 APK
+
+在 GitHub Actions 的 Build APK 工作流中选择 `feature/local-tcp` 并运行，成功后下载 `WebScreen-debug` artifact，解压安装 APK。也可使用：
+
+```bash
+gh workflow run build.yml -R Cedar17/WebScrcpy --ref feature/local-tcp
+gh run list -R Cedar17/WebScrcpy -b feature/local-tcp
+```
+
+首轮建议 H.264 / 30 FPS / 4 Mbps，关闭音频验证画面及触控，再验证音频、旋转、黑屏、重连及多端。浏览器开发者工具中应看到 `/screen/ws` 的 WebSocket 二进制流。服务默认 HTTP 8079，建议设置 PIN，仅在可信网络使用；HTTP/WS 默认不加密。
 
 ## 常见问题
 

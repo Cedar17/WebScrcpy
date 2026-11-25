@@ -1,6 +1,6 @@
 # Android APK（Root 手机直接运行 WebScreen）
 
-这个 fork 在**不改变 webscreen 原有实现**的前提下，增加了把它打包成 APK、
+这个 fork 在原版基础上增加了把 webscreen 打包成 APK、
 在**已 Root 的 Android 手机上直接运行 webscreen 服务**的能力。
 
 原来的用法是「PC 上跑 webscreen + 用 adb 驱动一台 Android 设备」。现在多了一种用法：
@@ -35,8 +35,7 @@ webscreen 的投屏核心是 scrcpy-server：它是一个 Java jar，由 `app_pr
      与 `send_dummy_byte=false`（保持与主机模式一致的流格式）；
   3. webscreen 直接连 `@scrcpy_<scid>` abstract socket（视频/音频/控制各一条）。
 
-  其余全部复用原实现：WebRTC、音频、鼠标、键盘、触摸、剪贴板、UHID、PIN 认证、
-  Web UI 一个字都没改。
+  纯 TCP 分支保留原版 Web UI、控制事件与 PIN 认证，通过同源 `/screen/ws` WebSocket 传输视频、音频及控制消息；浏览器使用 JMuxer/MSE 播放视频及 WebM/Opus 音频，不再创建 WebRTC PeerConnection。
 
 设备列表里会多出一台「本机」设备（用 `ro.product.model` 命名），选中它即可开始投屏。
 
@@ -45,7 +44,7 @@ webscreen 的投屏核心是 scrcpy-server：它是一个 Java jar，由 `app_pr
 推荐用 GitHub Actions 云端构建（不需要本地装 Android SDK）：
 
 ```
-仓库 → Actions → Build APK → Run workflow
+仓库 → Actions → Build APK → Run workflow → feature/local-tcp
 ```
 
 跑完之后在 **Actions → 该次运行 → Artifacts → `WebScreen-debug`** 下载
@@ -177,6 +176,8 @@ APK 默认使用 **8079**（原程序命令行默认是 8081，APK 启动时显�
 并监听 `0.0.0.0`，局域网内其它设备可以访问。
 
 ## 已验证 / 未验证
+
+以下为上游 WebRTC 版本的历史真机验证记录，不代表当前 TCP 分支已通过测试。TCP 版本需重新验证构建、视频、音频、触控、旋转、重连及多端连接。
 
 已在真机验证（OnePlus 7 Pro，Android 16，KernelSU-Next root，arm64）：
 
