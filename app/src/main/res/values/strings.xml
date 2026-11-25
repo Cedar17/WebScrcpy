@@ -8,6 +8,8 @@
     <string name="need_root">需要 Root 权限才能运行 WebScrcpy</string>
 
     <string name="label_server">SERVER</string>
+    <string name="server_starting">● Starting…</string>
+    <string name="server_stopping">● Stopping…</string>
     <string name="server_running">● Running</string>
     <string name="server_stopped">● Stopped</string>
     <string name="server_error">● 启动失败：%1$s</string>
@@ -31,6 +33,6 @@
     <string name="log_empty">（暂无输出）</string>
 
     <string name="notification_channel">WebScrcpy 服务</string>
-    <string name="notification_channel_desc">在前台保持 webscreen 服务器运行</string>
+    <string name="notification_channel_desc">在前台保持 WebScrcpy 服务器运行</string>
     <string name="notification_running">运行中 · %1$s</string>
 </resources>

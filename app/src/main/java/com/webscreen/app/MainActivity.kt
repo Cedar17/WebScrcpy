@@ -38,6 +38,9 @@ class MainActivity : Activity() {
 
     private var rootGranted = false
     private var rootCheckInFlight = false
+    private var pendingStart = false
+    private var stateProbeInFlight = false
+    private var failedProbes = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,48 +93,38 @@ class MainActivity : Activity() {
 
     private fun onStartClicked() {
         if (!rootGranted) {
-            // The root request is the standard `su` call; the manager shows the
-            // dialog the first time. Re-check and try again right away.
-            toast(getString(R.string.need_root))
-            checkRoot(andThenStart = true)
+            pendingStart = true
+            checkRoot()
             return
         }
-        val pin = pinInput.text.toString().trim()
-        if (pin.isNotEmpty() && (pin.length != 6 || !pin.all { it.isDigit() })) {
-            toast(getString(R.string.invalid_pin))
-            return
-        }
-        prefs.pin = pin
-        ServerState.clearLog()
-        WebScreenService.start(this)
-        handler.postDelayed({ refreshFromProcess() }, 800)
+        startServerNow()
     }
 
     private fun onStopClicked() {
         WebScreenService.stop(this)
-        ServerState.setRunning(false)
-        handler.postDelayed({ refreshFromProcess() }, 500)
+        renderServer()
     }
 
     private fun copyAddress() {
         val address = NetUtils.addressFor(prefs.port)
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("webscreen", address))
+        clipboard.setPrimaryClip(ClipData.newPlainText("WebScrcpy", address))
         toast(getString(R.string.copied, address))
     }
 
     // ------------------------------------------------------------------ status
 
-    private fun checkRoot(andThenStart: Boolean = false) {
+    private fun checkRoot() {
         if (rootCheckInFlight) return
         rootCheckInFlight = true
         Thread {
             val granted = RootShell.hasRoot()
-            rootGranted = granted
-            rootCheckInFlight = false
             handler.post {
+                rootGranted = granted
+                rootCheckInFlight = false
                 renderRoot(granted)
-                if (granted && andThenStart) {
+                if (granted && pendingStart) {
+                    pendingStart = false
                     startServerNow()
                 }
             }
@@ -140,27 +133,42 @@ class MainActivity : Activity() {
 
     private fun startServerNow() {
         val pin = pinInput.text.toString().trim()
-        if (pin.isNotEmpty() && (pin.length != 6 || !pin.all { it.isDigit() })) {
+        if (pin.isNotEmpty() && (pin.length != 6 || !pin.all { it in '0'..'9' })) {
             toast(getString(R.string.invalid_pin))
             return
         }
         prefs.pin = pin
-        ServerState.clearLog()
+        failedProbes = 0
         WebScreenService.start(this)
-        handler.postDelayed({ refreshFromProcess() }, 800)
+        renderServer()
     }
 
     private fun refreshFromProcess() {
-        if (ServerState.running) {
-            renderServer()
-            return
-        }
+        renderServer()
+        val observed = ServerState.status
+        if (stateProbeInFlight || observed.phase == ServerState.Phase.STARTING ||
+            observed.phase == ServerState.Phase.STOPPING) return
+        stateProbeInFlight = true
+        val port = prefs.port
         Thread {
-            val running = WebScreenService.detectRunning()
-            if (running) {
-                ServerState.setRunning(true)
+            val ready = WebScreenService.isReady(port)
+            handler.post {
+                stateProbeInFlight = false
+                if (ServerState.status == observed) {
+                    if (ready) {
+                        failedProbes = 0
+                        ServerState.reconcile(observed, true)
+                    } else if (observed.phase == ServerState.Phase.RUNNING) {
+                        if (++failedProbes >= 2) {
+                            ServerState.reconcile(observed, false)
+                            failedProbes = 0
+                        }
+                    } else {
+                        failedProbes = 0
+                    }
+                }
+                renderServer()
             }
-            handler.post { renderServer() }
         }.start()
     }
 
@@ -170,32 +178,13 @@ class MainActivity : Activity() {
         override fun run() {
             renderServer()
             renderLog()
-            // While root is missing, keep probing: as soon as the user approves
-            // the request in Magisk/KernelSU the start button becomes usable.
-            if (!rootGranted) {
-                checkRoot()
-            }
-            // ServerState.running 只是本进程内的缓存标记：服务进程可能被杀，
-            // 也可能由别的途径（开机自启、上一次运行的残留）启动，界面就会一直
-            // 停在错误的状态上，用户得手动“停止→启动”才能恢复。这里定期拿真实
-            // 进程校正一次，界面状态不再需要人工纠正。
-            val now = System.currentTimeMillis()
+            if (!rootGranted) checkRoot()
+            val now = android.os.SystemClock.elapsedRealtime()
             if (now - lastStateProbeAt >= 2000) {
                 lastStateProbeAt = now
-                Thread {
-                    val pid = ServerState.runningPid()
-                    val actuallyRunning = pid != 0
-                    if (actuallyRunning != ServerState.running) {
-                        ServerState.setRunning(actuallyRunning)
-                        ServerState.append(
-                            if (actuallyRunning) "[app] 检测到 webscreen 进程 (pid=$pid)，界面状态已同步"
-                            else "[app] webscreen 进程已退出，界面状态已同步"
-                        )
-                    }
-                    handler.post { renderServer() }
-                }.start()
+                refreshFromProcess()
             }
-            handler.postDelayed(this, 1000)
+            handler.postDelayed(this, 500)
         }
     }
 
@@ -207,31 +196,31 @@ class MainActivity : Activity() {
             rootStatus.text = getString(R.string.need_root)
             rootStatus.setTextColor(0xFFD98B72.toInt())
         }
-        startButton.isEnabled = granted
+        renderServer()
     }
 
     private fun renderServer() {
-        val running = ServerState.running
-        serverStatus.text = if (running) {
-            getString(R.string.server_running)
-        } else {
-            getString(R.string.server_stopped)
+        val state = ServerState.status
+        val phase = state.phase
+        serverStatus.text = when (phase) {
+            ServerState.Phase.STARTING -> getString(R.string.server_starting)
+            ServerState.Phase.RUNNING -> getString(R.string.server_running)
+            ServerState.Phase.STOPPING -> getString(R.string.server_stopping)
+            ServerState.Phase.ERROR -> getString(R.string.server_error, state.error.orEmpty())
+            ServerState.Phase.STOPPED -> getString(R.string.server_stopped)
         }
-        serverStatus.setTextColor(if (running) 0xFF6EC7AD.toInt() else 0xFF9E9E9E.toInt())
+        serverStatus.setTextColor(when (phase) {
+            ServerState.Phase.RUNNING -> 0xFF6EC7AD.toInt()
+            ServerState.Phase.STARTING, ServerState.Phase.STOPPING -> 0xFFE7B66E.toInt()
+            ServerState.Phase.ERROR -> 0xFFD98B72.toInt()
+            ServerState.Phase.STOPPED -> 0xFF9E9E9E.toInt()
+        })
 
         portView.text = prefs.port.toString()
         val address = NetUtils.addressFor(prefs.port)
-        addressView.text = if (running) address else getString(R.string.address_hint, address)
-
-        startButton.isEnabled = rootGranted && !running
-        stopButton.isEnabled = running
-
-        ServerState.lastError?.let {
-            if (!running) {
-                serverStatus.text = getString(R.string.server_error, it)
-                serverStatus.setTextColor(0xFFD98B72.toInt())
-            }
-        }
+        addressView.text = address
+        startButton.isEnabled = rootGranted && (phase == ServerState.Phase.STOPPED || phase == ServerState.Phase.ERROR)
+        stopButton.isEnabled = phase == ServerState.Phase.RUNNING || phase == ServerState.Phase.ERROR
     }
 
     private fun renderLog() {

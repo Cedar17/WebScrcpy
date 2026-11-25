@@ -112,7 +112,7 @@ const translations = {
         unlock_forgot_password: "Forgot PIN?",
         unlock_contact_admin: "Please contact the administrator to reset",
         unlock_success: "Unlock Successful",
-        unlock_welcome: "Welcome to Webscreen Management Console",
+        unlock_welcome: "Welcome to WebScrcpy",
         unlock_network_error: "Network error, please try again",
         unlock_verify_success: "Verification successful",
 
@@ -230,7 +230,7 @@ const translations = {
         unlock_forgot_password: "忘记密码?",
         unlock_contact_admin: "请联系管理员重置",
         unlock_success: "解锁成功",
-        unlock_welcome: "欢迎进入 Webscreen 管理控制台",
+        unlock_welcome: "欢迎进入 WebScrcpy",
         unlock_network_error: "网络错误，请重试",
         unlock_verify_success: "验证成功",
 
@@ -347,7 +347,7 @@ const translations = {
         unlock_forgot_password: "PINを忘れた方",
         unlock_contact_admin: "管理者に連絡してリセットしてください",
         unlock_success: "ロック解除成功",
-        unlock_welcome: "Webscreen 管理コンソールへようこそ",
+        unlock_welcome: "WebScrcpyへようこそ",
         unlock_network_error: "ネットワークエラー。もう一度お試しください",
         unlock_verify_success: "検証成功",
 

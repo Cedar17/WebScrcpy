@@ -62,6 +62,8 @@ func (wm *WebMaster) setRouter() {
 		ctx.FileFromFS("unlock.html", http.FS(wm.staticFS))
 	})
 	r.POST("/api/unlock", wm.handleUnlock)
+	// Non-sensitive readiness marker used by the Android service, even with PIN enabled.
+	r.GET("/healthz", func(c *gin.Context) { c.String(200, "WebScrcpy ready") })
 
 	r.GET("/", func(ctx *gin.Context) {
 		ctx.Redirect(302, "/console")

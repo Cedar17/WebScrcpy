@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
  */
 object RootShell {
 
-    private const val TAG = "webscreen"
+    private const val TAG = "WebScrcpy"
 
     const val WORK_DIR = "/data/local/tmp/webscreen"
     const val REMOTE_BINARY = "$WORK_DIR/webscreen"
@@ -65,12 +65,12 @@ object RootShell {
                 .redirectErrorStream(true)
                 .start()
             val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-            val output = process.inputStream.bufferedReader().readText()
             if (!finished) {
                 process.destroyForcibly()
                 Log.w(TAG, "su command timed out: ${command.joinToString(" ")}")
-                return Result(-1, output, true)
+                return Result(-1, "Root command timed out", true)
             }
+            val output = process.inputStream.bufferedReader().readText()
             Result(process.exitValue(), output, false)
         } catch (e: Exception) {
             Log.w(TAG, "su command failed ($su): ${e.message}")
