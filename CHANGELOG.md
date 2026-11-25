@@ -1,6 +1,12 @@
 # Changelog
 
-## 1.3.0 — Android-only TCP (unreleased)
+## 1.4.0 — Cleanup (unreleased)
+
+- Remove unused OCR translation and empty command script, obsolete transport callbacks and unsupported driver constants.
+- Drop stale Docker/fnOS build ignore entries and legacy debug configuration.
+- Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
+
+## 1.3.0 — Android-only TCP
 
 - Pure TCP WebSocket transport, JMuxer/MSE video and WebM/Opus audio.
 - Retain user-tested TCP baseline low-latency buffering.

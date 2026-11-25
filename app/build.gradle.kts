@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -38,7 +36,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = gitVersionCode()
-        versionName = "1.3.0"
+        versionName = "1.4.0"
     }
 
     signingConfigs {

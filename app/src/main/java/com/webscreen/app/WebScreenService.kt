@@ -147,7 +147,6 @@ class WebScreenService : Service() {
         args.append("'").append(remote).append("'")
         args.append(" -host 0.0.0.0")
         args.append(" -port ").append(port)
-        args.append(" -local-root")
         if (prefs.pin.isNotEmpty()) {
             args.append(" -pin ").append(prefs.pin)
         }

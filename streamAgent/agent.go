@@ -17,9 +17,6 @@ type Agent struct {
 	audioCh   <-chan sdriver.AVBox
 	controlCh chan sdriver.Event
 
-	// WebSocket 回调
-	OnVideoFrame func([]byte)
-	OnAudioFrame func([]byte)
 	// Preserve scrcpy timestamps and codec configuration packets for TCP transport.
 	OnVideoBox func(sdriver.AVBox)
 	OnAudioBox func(sdriver.AVBox)

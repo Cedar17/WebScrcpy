@@ -1,31 +1,8 @@
 // TCP/MSE live playback settings (seconds, except the watchdog interval).
 const tcpLatency = sync => sync ? {target:0.18, accelerate:0.30, seek:0.65, rate:1.10} : {target:0.08, accelerate:0.15, seek:0.35, rate:1.15};
 
-// Load CONFIG from sessionStorage if available, otherwise use URL params or defaults
+// Load the local Android session configuration from sessionStorage.
 var CONFIG = (function () {
-
-    // // if url has ?debug, use hardcoded debug config
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('debug')) {
-        console.log("Using debug config from URL parameter");
-        return {
-            device_type: "sunshine",
-            device_id: "127.0.0.1:5555",
-            device_ip: "127.0.0.1",
-            device_port: "5555",
-            av_sync: false,
-            driver_config: {
-                max_fps: "60",
-                video_codec: "h265",
-                audio_codec: "opus",
-                video_bit_rate: "4000000",
-                audio: "true",
-                file_path: "test/test.h265",
-                deviceID: "emulator-5554",
-                // new_display: "1920x1080/60",
-            }
-        };
-    }
 
     // Try to load from sessionStorage first (set by console.js)
     const stored = sessionStorage.getItem('webscreen_device_configs_now');
@@ -42,10 +19,10 @@ var CONFIG = (function () {
         }
     }
 
-    // Fallback to hardcoded defaults for testing
+    // No active session: the caller returns to the console.
     return {
         device_type: "none",
-        device_id: "emulator-5554",
+        device_id: "",
         device_ip: "0",
         device_port: "0",
         av_sync: false,

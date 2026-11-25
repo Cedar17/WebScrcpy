@@ -1,12 +1,7 @@
 package sagent
 
-// type deviceType string
-
 const (
-	DEVICE_TYPE_SUNSHINE string = "sunshine"
-	DEVICE_TYPE_LINUX    string = "linux"
 	DEVICE_TYPE_ANDROID  string = "android"
-	DEVICE_TYPE_DUMMY    string = "dummy"
 )
 
 type AgentConfig struct {
@@ -14,7 +9,6 @@ type AgentConfig struct {
 	DeviceID          string            `json:"device_id"`
 	DeviceIP          string            `json:"device_ip"`
 	DevicePort        string            `json:"device_port"`
-	SDP               string            `json:"sdp"`
 	AVSync            bool              `json:"av_sync"`
 	UseLocalTimestamp bool              `json:"use_local_timestamp"`
 	DriverConfig      map[string]string `json:"driver_config"`

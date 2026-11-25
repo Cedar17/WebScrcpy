@@ -12,11 +12,11 @@ import (
 )
 
 type WebMaster struct {
-	// WSConns []*websocket.Conn
+
 
 	tcpMu sync.Mutex
 	tcpSessions map[string]*tcpSession
-	// ScreenSessions map[string]ScreenSession
+
 
 	pin                  string
 	UnlockAttemptRecords map[string]UnlockAttemptRecord
@@ -28,10 +28,10 @@ type WebMaster struct {
 
 func New(staticFS fs.FS) *WebMaster {
 	wm := &WebMaster{
-		// ScreenSessions:       make(map[string]ScreenSession),
+
 		staticFS:             staticFS,
 		UnlockAttemptRecords: make(map[string]UnlockAttemptRecord),
-		// TCP-only browser transport: do not initialize the legacy RTC manager.
+
 	}
 	wm.jwtSecret = []byte(time.Now().String())
 	return wm
@@ -89,10 +89,9 @@ func (wm *WebMaster) setRouter() {
 	{
 		api.GET("/device/list", wm.handleListDevices)
 		api.GET("/device/configDescription", wm.handleDeviceConfigDescription)
-		// api.GET("/generalConfigDescription", wm.handleGeneralConfigDescription)
 
-		// api.POST("/device/discovery", wm.handleListDevicesDiscoveried)
-		// api.POST("/setPIN", wm.handleSetPIN)
+
+
 
 		// 受控端背光（隐私保护：屏幕黑，但不锁屏，串流照常）
 		api.POST("/screen/backlight", wm.handleBacklight)
@@ -117,8 +116,4 @@ func (wm *WebMaster) Serve(host, port string) {
 }
 
 func (wm *WebMaster) Close() {
-	// for k, v := range maps.All(wm.ScreenSessions) {
-	// 	log.Printf("closing session %v", k)
-	// 	v.Close()
-	// }
 }

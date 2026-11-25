@@ -7,10 +7,6 @@ import (
 )
 
 // sdriver -> Agent - > WebMaster -> 前端
-func (sa *Agent) FeedbackEvents() iter.Seq[[]byte] {
-	return sa.FeedbackEventsUntil(nil)
-}
-
 // FeedbackEventsUntil stops even when no control event arrives.
 func (sa *Agent) FeedbackEventsUntil(done <-chan struct{}) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
