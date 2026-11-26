@@ -43,24 +43,13 @@ func ParseSPS_H265(sps []byte) (SPSInfo, error) {
 
 	// --- Profile Tier Level (PTL) ---
 	// 这部分非常关键，必须正确跳过 sub-layers 才能读到后面的尺寸信息
-	profile, tier, level, err := parseProfileTierLevel(br, maxSubLayersMinus1)
-	if err != nil {
-		return info, err
-	}
-	info.Profile = profile
-	info.Level = fmt.Sprintf("%.1f", float32(level)/30.0)
-	if tier == 1 {
-		info.Tier = "High"
-	} else {
-		info.Tier = "Main"
-	}
+	skipProfileTierLevel(br, maxSubLayersMinus1)
 
 	// sps_seq_parameter_set_id: ue(v)
 	br.ReadExpGolomb()
 
 	// chroma_format_idc: ue(v)
 	chromaFormatIDC, _ := br.ReadExpGolomb()
-	info.ChromaFormat = chromaFormatIDC
 	if chromaFormatIDC == 3 {
 		br.ReadBits(1) // separate_colour_plane_flag
 	}
@@ -107,14 +96,14 @@ func ParseSPS_H265(sps []byte) (SPSInfo, error) {
 	return info, nil
 }
 
-// parseProfileTierLevel 解析 PTL 结构，这对跳过比特位至关重要
-func parseProfileTierLevel(br *BitReader, maxSubLayersMinus1 uint32) (uint8, uint8, uint8, error) {
+// skipProfileTierLevel advances through PTL to the dimension fields.
+func skipProfileTierLevel(br *BitReader, maxSubLayersMinus1 uint32) {
 	// general_profile_space: u(2)
 	br.ReadBits(2)
 	// general_tier_flag: u(1)
-	tierFlag, _ := br.ReadBits(1)
+	br.ReadBits(1)
 	// general_profile_idc: u(5)
-	profileIDC, _ := br.ReadBits(5)
+	br.ReadBits(5)
 
 	// general_profile_compatibility_flag: u(32)
 	br.ReadBits(32)
@@ -124,7 +113,7 @@ func parseProfileTierLevel(br *BitReader, maxSubLayersMinus1 uint32) (uint8, uin
 	br.ReadBits(16)
 
 	// general_level_idc: u(8)
-	levelIDC, _ := br.ReadBits(8)
+	br.ReadBits(8)
 
 	// 处理 sub_layers 的存在标志
 	subLayerProfilePresentFlag := make([]bool, maxSubLayersMinus1)
@@ -158,5 +147,4 @@ func parseProfileTierLevel(br *BitReader, maxSubLayersMinus1 uint32) (uint8, uin
 		}
 	}
 
-	return uint8(profileIDC), uint8(tierFlag), uint8(levelIDC), nil
 }

@@ -12,6 +12,7 @@
 - Remove unused scrcpy protocol declarations, obsolete remote-device backlight identifiers, and a duplicate NAL boundary check.
 - Remove unused Android permissions and the unreachable pre-unlock boot receiver branch; retain normal boot startup.
 - Remove redundant driver configuration assignments and fix the Android-only build output suffix.
+- Collapse the two legacy browser data-channel facades into one TCP control channel, remove the inert browser wake-lock script, and retain only consumed SPS display dimensions.
 - Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
 
 ## 1.3.0 — Android-only TCP

@@ -306,7 +306,7 @@ func (da *ScrcpyDriver) updateVideoMetaFromSPS(sps []byte, codec string) {
 	var err error
 	switch codec {
 	case "h264":
-		spsInfo, err = comm.ParseSPS_H264(sps, true)
+		spsInfo, err = comm.ParseSPS_H264(sps)
 	case "h265":
 		spsInfo, err = comm.ParseSPS_H265(sps)
 	default:

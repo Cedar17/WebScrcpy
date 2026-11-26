@@ -5,9 +5,15 @@ import (
 	"fmt"
 )
 
-// ParseSPS 精确解析SPS关键参数
-func ParseSPS_H264(sps []byte, readCroppingFlag bool) (SPSInfo, error) {
-	info := SPSInfo{Width: 0, Height: 0}
+// SPSInfo holds the decoded display dimensions.
+type SPSInfo struct {
+	Width  uint32
+	Height uint32
+}
+
+// ParseSPS_H264 parses the display dimensions.
+func ParseSPS_H264(sps []byte) (SPSInfo, error) {
+	var info SPSInfo
 
 	// 验证基本SPS格式
 	if len(sps) < 8 || (sps[0] != 0x67 && sps[0] != 0x27) {
@@ -18,23 +24,6 @@ func ParseSPS_H264(sps []byte, readCroppingFlag bool) (SPSInfo, error) {
 	reader := bytes.NewReader(sps)
 	bitReader := &BitReader{Reader: reader}
 
-	// 跳过起始字节 (0x00 0x00 0x00 0x01 或 0x00 0x00 0x01)
-	// startCode := 0
-	// for i := 0; i < 4; i++ {
-	// 	b, err := reader.ReadByte()
-	// 	if err != nil {
-	// 		return info, err
-	// 	}
-	// 	startCode = (startCode << 8) | int(b)
-	// }
-
-	// if startCode == 0x00000001 {
-	// 	// 标准起始码，已跳过
-	// } else {
-	// 	// 回退
-	// 	reader.Seek(0, io.SeekStart)
-	// }
-
 	// 跳过NAL单元类型
 	_, err := reader.ReadByte()
 	if err != nil {
@@ -43,15 +32,12 @@ func ParseSPS_H264(sps []byte, readCroppingFlag bool) (SPSInfo, error) {
 
 	// 1. 读取profile_idc(8位)
 	profileIdc, _ := bitReader.ReadUint8(8)
-	info.Profile = profileIdc // 可选使用
 
 	// 2. constraint_flags(8位)
-	constraintFlags, _ := bitReader.ReadUint8(8)
-	info.ConstraintSetFlags = constraintFlags
+	bitReader.ReadUint8(8)
 
 	// 3. 读取level_idc(8位)
-	levelIdc, _ := bitReader.ReadUint8(8)
-	info.Level = levelToString(levelIdc)
+	bitReader.ReadUint8(8)
 	// 4. 解析seq_parameter_set_id (ue)
 	_, err = bitReader.ReadExpGolomb()
 	if err != nil {
@@ -137,85 +123,30 @@ func ParseSPS_H264(sps []byte, readCroppingFlag bool) (SPSInfo, error) {
 	}
 
 	// 13. 后续字段 (可选)
-	direct8x8Inference, _ := bitReader.ReadUint8(1)
-	_ = direct8x8Inference
+	bitReader.ReadUint8(1)
 
 	// 14. 读取frame_cropping_flag (1位)
 	frameCroppingFlag, _ := bitReader.ReadUint8(1)
 
-	// 15. 如果frame_cropping_flag为1，读取裁剪参数
-	//是否需要准确的宽高,很耗性能
-	if readCroppingFlag {
-		if frameCroppingFlag == 1 {
-			frameCropLeftOffset, _ := bitReader.ReadExpGolomb()
-			frameCropRightOffset, _ := bitReader.ReadExpGolomb()
-			frameCropTopOffset, _ := bitReader.ReadExpGolomb()
-			frameCropBottomOffset, _ := bitReader.ReadExpGolomb()
+	if frameCroppingFlag == 1 {
+		frameCropLeftOffset, _ := bitReader.ReadExpGolomb()
+		frameCropRightOffset, _ := bitReader.ReadExpGolomb()
+		frameCropTopOffset, _ := bitReader.ReadExpGolomb()
+		frameCropBottomOffset, _ := bitReader.ReadExpGolomb()
 
-			// 应用裁剪参数（假设色度格式为4:2:0）
-			subWidthC := int(2)
-			subHeightC := int(2)
+		// 应用裁剪参数（假设色度格式为4:2:0）
+		subWidthC := int(2)
+		subHeightC := int(2)
 
-			// 计算裁剪后的尺寸
-			cropLeft := int(frameCropLeftOffset) * subWidthC
-			cropRight := int(frameCropRightOffset) * subWidthC
-			cropTop := int(frameCropTopOffset) * subHeightC
-			cropBottom := int(frameCropBottomOffset) * subHeightC
+		// 计算裁剪后的尺寸
+		cropLeft := int(frameCropLeftOffset) * subWidthC
+		cropRight := int(frameCropRightOffset) * subWidthC
+		cropTop := int(frameCropTopOffset) * subHeightC
+		cropBottom := int(frameCropBottomOffset) * subHeightC
 
-			info.Width -= uint32(cropLeft + cropRight)
-			info.Height -= uint32(cropTop + cropBottom)
-		}
+		info.Width -= uint32(cropLeft + cropRight)
+		info.Height -= uint32(cropTop + cropBottom)
 	}
-
-	// 16. VUI Parameters
-	vuiParametersPresentFlag, _ := bitReader.ReadUint8(1)
-	if vuiParametersPresentFlag == 1 {
-		// aspect_ratio_info_present_flag
-		if flag, _ := bitReader.ReadUint8(1); flag == 1 {
-			aspectRatioIdc, _ := bitReader.ReadUint8(8)
-			if aspectRatioIdc == 255 { // Extended_SAR
-				bitReader.ReadUint16(16) // sar_width
-				bitReader.ReadUint16(16) // sar_height
-			}
-		}
-
-		// overscan_info_present_flag
-		if flag, _ := bitReader.ReadUint8(1); flag == 1 {
-			bitReader.ReadUint8(1) // overscan_appropriate_flag
-		}
-
-		// video_signal_type_present_flag
-		if flag, _ := bitReader.ReadUint8(1); flag == 1 {
-			bitReader.ReadUint8(3)                            // video_format
-			bitReader.ReadUint8(1)                            // video_full_range_flag
-			if flag, _ := bitReader.ReadUint8(1); flag == 1 { // colour_description_present_flag
-				bitReader.ReadUint8(8) // colour_primaries
-				bitReader.ReadUint8(8) // transfer_characteristics
-				bitReader.ReadUint8(8) // matrix_coefficients
-			}
-		}
-
-		// chroma_loc_info_present_flag
-		if flag, _ := bitReader.ReadUint8(1); flag == 1 {
-			bitReader.ReadExpGolomb() // chroma_sample_loc_type_top_field
-			bitReader.ReadExpGolomb() // chroma_sample_loc_type_bottom_field
-		}
-
-		// timing_info_present_flag
-		if flag, _ := bitReader.ReadUint8(1); flag == 1 {
-			numUnitsInTick, _ := bitReader.ReadBits(32)
-			timeScale, _ := bitReader.ReadBits(32)
-			fixedFrameRateFlag, _ := bitReader.ReadUint8(1)
-			_ = fixedFrameRateFlag
-
-			if numUnitsInTick > 0 && timeScale > 0 {
-				info.FrameRate = float64(timeScale) / (2.0 * float64(numUnitsInTick))
-			}
-		}
-	}
-
-	// 15. 估算帧率
-	info.estimateFrameRate()
 
 	return info, nil
 }
@@ -264,17 +195,6 @@ func (r *BitReader) ReadUint8(bits uint) (uint8, error) {
 	return value, nil
 }
 
-func (r *BitReader) ReadUint16(bits uint) (uint16, error) {
-	var value uint16
-	for i := uint(0); i < bits; i++ {
-		bit, err := r.ReadBit()
-		if err != nil {
-			return 0, err
-		}
-		value = (value << 1) | uint16(bit)
-	}
-	return value, nil
-}
 
 func (r *BitReader) ReadBits(bits uint) (uint32, error) {
 	var value uint32
@@ -331,56 +251,15 @@ func (r *BitReader) ReadSignedExpGolomb() (int32, error) {
 func skipScalingList(br *BitReader) {
 	lastScale := 8
 	nextScale := 8
-	size := 8
-	if size > 64 {
-		size = 8
-	}
-
-	for j := 0; j < size; j++ {
+	for j := 0; j < 8; j++ {
 		if nextScale != 0 {
 			deltaScale, _ := br.ReadSignedExpGolomb()
 			nextScale = (lastScale + int(deltaScale) + 256) % 256
 		}
-		if nextScale == 0 {
-			// lastScale = lastScale
-		} else {
+		if nextScale != 0 {
 			lastScale = nextScale
 		}
 	}
-}
-
-// 估算帧率
-func (info *SPSInfo) estimateFrameRate() {
-	if info.FrameRate > 0 {
-		return
-	}
-	if info.Width == 0 || info.Height == 0 {
-		info.FrameRate = 30.0
-		return
-	}
-
-	megapixels := float64(info.Width*info.Height) / 1000000
-
-	switch {
-	case megapixels <= 0.3: // VGA
-		info.FrameRate = 30.0
-	case megapixels <= 1.0: // 720p
-		info.FrameRate = 30.0
-	case megapixels <= 2.0: // 1080p
-		info.FrameRate = 25.0
-	case megapixels <= 8.0: // 4K
-		info.FrameRate = 24.0
-	default: // 8K+
-		info.FrameRate = 24.0
-	}
-}
-func levelToString(level uint8) string {
-	major := level / 10
-	minor := level % 10
-	if minor == 0 {
-		return fmt.Sprintf("%d", major)
-	}
-	return fmt.Sprintf("%d.%d", major, minor)
 }
 
 // RemoveEmulationPreventionBytes 移除 H.264/H.265 中的防竞争码 0x03
