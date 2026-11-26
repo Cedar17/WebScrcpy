@@ -105,10 +105,10 @@
         if (uhidGamepadInitialized) return;
 
         // 尝试先销毁旧设备 (如果存在)
-        sendDataChannelMessage(window.dataChannelOrdered, createUHIDGamepadDestroyPacket());
+        sendControlMessage(createUHIDGamepadDestroyPacket());
 
         const packet = createUHIDGamepadCreatePacket();
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidGamepadInitialized = true;
         console.log("UHID Gamepad device created");
     }
@@ -117,7 +117,7 @@
         if (!uhidGamepadInitialized) return;
 
         const packet = createUHIDGamepadDestroyPacket();
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidGamepadInitialized = false;
         uhidGamepadEnabled = false;
         console.log("UHID Gamepad device destroyed");
@@ -150,7 +150,7 @@
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         //     window.ws.send(packet);
         // }
-        sendDataChannelMessage(window.dataChannelUnordered, packet);
+        sendControlMessage(packet);
     }
 
     // --- 3. 协议包构造函数 ---

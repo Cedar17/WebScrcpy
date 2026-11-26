@@ -207,7 +207,7 @@ function sendTouchEvent(action, ptrId, x, y, pressure = 65535, buttons = 1) {
     // praseTouchEvent(p);
     // window.ws.send(p);
     // console.log("Sending touch event packet:", p);
-    sendDataChannelMessage(window.dataChannelUnordered, p);
+    sendControlMessage(p);
 }
 
 

@@ -11,8 +11,6 @@ var CONFIG = (function () {
         try {
             const parsed = JSON.parse(stored);
             console.log("Using stored config:", parsed);
-            // Clear it after reading to avoid stale data
-            // sessionStorage.removeItem('webscreen_device_configs_now');
             return parsed;
         } catch (e) {
             console.warn('Failed to parse stored config:', e);
@@ -42,7 +40,8 @@ let tcpReconnect = null;
 let tcpStopped = false;
 let tcpUI = null;
 
-function sendDataChannelMessage(channel, msg) {
+function sendControlMessage(msg) {
+    const channel = window.controlChannel;
     if (channel && channel.readyState === 'open') channel.send(msg);
 }
 
@@ -116,10 +115,9 @@ async function start() {
     const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')+location.host+'/screen/ws');
     socket.binaryType = 'arraybuffer';
     window.ws = socket;
-    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,lastVideo:Date.now(),opened:Date.now(),watchdog:null,firstFrame:false};
+    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,opened:Date.now(),watchdog:null,firstFrame:false};
     tcpCurrent = s;
-    const channel = label => ({
-        label,
+    window.controlChannel = {
         get readyState() { return s.ready && socket.readyState===WebSocket.OPEN ? 'open':'closed'; },
         get bufferedAmount() { return socket.bufferedAmount; },
         send(data) {
@@ -130,9 +128,7 @@ async function start() {
             }
             socket.send(data);
         }
-    });
-    window.dataChannelOrdered = channel('control-ordered');
-    window.dataChannelUnordered = channel('control-unordered');
+    };
     socket.onopen = () => socket.send(JSON.stringify(config));
     socket.onerror = () => console.warn('[tcp] websocket error');
     socket.onclose = () => tcpFail(s,'TCP connection disconnected');
@@ -171,7 +167,6 @@ async function start() {
         } else {
             s.muxer.feed(item);
         }
-        s.lastVideo=Date.now();
         s.firstFrame=true;
         tcpRetry=0;
         if(video.paused) video.play().catch(()=>{});
@@ -314,8 +309,6 @@ async function updateUIBasedOnCapabilities(caps) {
                 console.error("Failed to load UHID scripts", e);
             }
         }
-
-        await loadScript('/static/capabilities/keep_screen_on.js');
 
     }
 

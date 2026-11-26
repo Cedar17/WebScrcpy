@@ -8,11 +8,11 @@
 
         // Send Down
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_HOME);
-        sendButtonEvent(p);
+        sendControlMessage(p);
 
         // Send Up
         p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_HOME);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function volumeUpButton() {
@@ -21,65 +21,53 @@
         if (window.uhidVolumePress && window.uhidVolumePress('up')) return;
         const KEYCODE_VOLUME_UP = 24;
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_VOLUME_UP);
-        sendButtonEvent(p);
+        sendControlMessage(p);
         p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_VOLUME_UP);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function volumeDownButton() {
         if (window.uhidVolumePress && window.uhidVolumePress('down')) return;
         const KEYCODE_VOLUME_DOWN = 25;
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_VOLUME_DOWN);
-        sendButtonEvent(p);
+        sendControlMessage(p);
         p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_VOLUME_DOWN);
-        sendButtonEvent(p);
-    }
-
-    function powerButton() {
-        const KEYCODE_POWER = 26;
-        let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_POWER);
-        sendButtonEvent(p);
-        p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_POWER);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function pressButton(keyCode) {
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, keyCode);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function releaseButton(keyCode) {
         let p = createKeyPacket(TYPE_KEY_ACTION_UP, keyCode);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function backButton() {
         const KEYCODE_BACK = 4;
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_BACK);
-        sendButtonEvent(p);
+        sendControlMessage(p);
         p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_BACK);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function menuButton() {
         const KEYCODE_APP_SWITCH = 187;
         let p = createKeyPacket(TYPE_KEY_ACTION_DOWN, KEYCODE_APP_SWITCH);
-        sendButtonEvent(p);
+        sendControlMessage(p);
         p = createKeyPacket(TYPE_KEY_ACTION_UP, KEYCODE_APP_SWITCH);
-        sendButtonEvent(p);
+        sendControlMessage(p);
     }
 
     function rotateButton() {
         let p = createRotatePacket();
-        sendButtonEvent(p);
+        sendControlMessage(p);
         window.MANNUAL_ROTATE = true;
         setTimeout(() => {
             updateVideoCache();
         }, 500);
-    }
-
-    function sendButtonEvent(packet) {
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
     }
 
     const TYPE_ROTATE = 0x0B; // rotate event
@@ -100,7 +88,6 @@
 
     window.document.querySelector('#volumeUpButton').addEventListener('click', volumeUpButton);
     window.document.querySelector('#volumeDownButton').addEventListener('click', volumeDownButton);
-    // window.document.querySelector('#powerButton').addEventListener('click', powerButton);
     window.document.querySelector('#powerButton').addEventListener('mousedown', () => pressButton(26));
     window.document.querySelector('#powerButton').addEventListener('mouseup', () => releaseButton(26));
     window.document.querySelector('#powerButton').addEventListener('mouseleave', () => releaseButton(26));

@@ -49,7 +49,7 @@
     let boundChannel = null;
 
     function channel() {
-        const ch = window.dataChannelOrdered;
+        const ch = window.controlChannel;
         if (!ch || ch.readyState !== 'open') return null;
         return ch;
     }
