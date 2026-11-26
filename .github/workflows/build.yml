@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, feature/local-tcp, feature/android-only ]
+    branches: [ main, feature/local-tcp, feature/android-only, refactor/cleanup-1.4 ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
@@ -83,13 +83,8 @@ jobs:
 
       # Build only the Android server.
       - name: Build webscreen for android/arm64
-        env:
-          GOOS: android
-          GOARCH: arm64
-          CGO_ENABLED: '0'
         run: |
-          mkdir -p dist
-          make ci DIST_DIR=dist SUFFIX="-android-arm64"
+          make ci
           ls -l dist/
           file dist/webscreen-android-arm64
 
