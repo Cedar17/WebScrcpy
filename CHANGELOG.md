@@ -6,6 +6,7 @@
 - Drop stale Docker/fnOS build ignore entries and legacy debug configuration.
 - Remove unused WebRTC structs, driver stubs and obsolete device-ignore UI code/translations.
 - Prune unused Android resources, old screenshot, redundant config types and unused browser control declarations.
+- Consolidate tiny source files and use the concrete Scrcpy driver directly, eliminating the single-function utils package and the unused generic driver abstraction.
 - Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
 
 ## 1.3.0 — Android-only TCP

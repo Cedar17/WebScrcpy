@@ -15,7 +15,6 @@ import (
 	"time"
 	"webscreen/sdriver"
 	"webscreen/sdriver/comm"
-	"webscreen/utils"
 )
 
 type ScrcpyDriver struct {
@@ -148,7 +147,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		video_bit_rate_str = "4M"
 		config["video_bit_rate"] = "4M" // 默认 4 Mbps
 	}
-	video_bit_rate, err := utils.ParseBitrate(video_bit_rate_str)
+	video_bit_rate, err := parseBitrate(video_bit_rate_str)
 	if err != nil {
 		return nil, fmt.Errorf("invalid video bit rate: %v", err)
 	}
@@ -404,4 +403,34 @@ func createCopy(src []byte, context string) []byte {
 	dst := make([]byte, len(src))
 	copy(dst, src)
 	return dst
+}
+
+func parseBitrate(bitrateStr string) (int, error) {
+	var bitrate int
+	var multiplier int = 1
+
+	if len(bitrateStr) == 0 {
+		return 0, nil
+	}
+
+	lastChar := bitrateStr[len(bitrateStr)-1]
+	switch lastChar {
+	case 'K', 'k':
+		multiplier = 1000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	case 'M', 'm':
+		multiplier = 1000000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	case 'G', 'g':
+		multiplier = 1000000000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	}
+
+	var err error
+	bitrate, err = strconv.Atoi(bitrateStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid bitrate format: %s", bitrateStr)
+	}
+
+	return bitrate * multiplier, nil
 }

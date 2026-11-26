@@ -9,6 +9,13 @@ import (
 	"webscreen/sdriver"
 )
 
+type ScrcpyFrameHeader struct {
+	IsConfig   bool
+	IsKeyFrame bool
+	PTS        uint64
+	Size       uint32
+}
+
 func (da *ScrcpyDriver) convertVideoFrame() {
 	var headerBuf [12]byte
 	header := ScrcpyFrameHeader{}

@@ -8,8 +8,41 @@ import (
 	"webscreen/sdriver/scrcpy"
 )
 
+const DEVICE_TYPE_ANDROID = "android"
+
+type AgentConfig struct {
+	DeviceType        string            `json:"device_type"`
+	DeviceID          string            `json:"device_id"`
+	DeviceIP          string            `json:"device_ip"`
+	DevicePort        string            `json:"device_port"`
+	AVSync            bool              `json:"av_sync"`
+	UseLocalTimestamp bool              `json:"use_local_timestamp"`
+	DriverConfig      map[string]string `json:"driver_config"`
+}
+
+func ConfigDescription() []sdriver.ConfigParamDescription {
+
+	return []sdriver.ConfigParamDescription{
+		{
+			Name:        "av_sync",
+			Type:        "boolean",
+			Required:    true,
+			Default:     false,
+			Description: "Enable A/V sync. Useful when watching videos.",
+		},
+		{
+			Name:        "use_local_timestamp",
+			Type:        "boolean",
+			Required:    true,
+			Default:     true,
+			Description: "Use local timestamp instead of device timestamp. This may reduce latency but the video may be less smooth.",
+		},
+
+	}
+}
+
 type Agent struct {
-	driver     sdriver.SDriver
+	driver     *scrcpy.ScrcpyDriver
 	driverCaps sdriver.DriverCaps
 	config     AgentConfig
 	// chan
@@ -89,10 +122,7 @@ func (sa *Agent) Alive() bool {
 	if sa.driver == nil {
 		return false
 	}
-	if a, ok := sa.driver.(interface{ Alive() bool }); ok {
-		return a.Alive()
-	}
-	return true
+	return sa.driver.Alive()
 }
 
 func (sa *Agent) GetMediaMeta() sdriver.MediaMeta {
