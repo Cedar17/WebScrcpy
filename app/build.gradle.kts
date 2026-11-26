@@ -37,6 +37,9 @@ android {
         targetSdk = 34
         versionCode = gitVersionCode()
         versionName = "1.4.0"
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -72,14 +75,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-    }
-
-    defaultConfig {
-        ndk {
-            // Phase 1 targets 64 bit ARM devices (the Go binary is built for
-            // android/arm64 only).
-            abiFilters += "arm64-v8a"
-        }
     }
 
     // The Go binary is shipped as libwebscreen.so and must exist as a real file

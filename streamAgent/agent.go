@@ -43,7 +43,6 @@ func ConfigDescription() []sdriver.ConfigParamDescription {
 
 type Agent struct {
 	driver     *scrcpy.ScrcpyDriver
-	driverCaps sdriver.DriverCaps
 	config     AgentConfig
 	// chan
 	videoCh   <-chan sdriver.AVBox
@@ -71,39 +70,37 @@ func (sa *Agent) InitDriver() error {
 	if sa.config.DriverConfig == nil {
 		sa.config.DriverConfig = make(map[string]string)
 	}
-	switch sa.config.DeviceType {
-	case DEVICE_TYPE_ANDROID:
-		// 初始化 Android Driver（失败有限重试）
-		//
-		// scrcpy 会话启动是一次性握手：设备端 scrcpy-server 起得慢、上一会话的
-		// socket/端口尚未释放等，都会让读取设备元数据时直接拿到 EOF，用户看到的
-		// 就是“服务器错误: failed to ensure agent: EOF”。这类失败多为瞬时且可恢复，
-		// 而 scrcpy.New 的失败路径会释放 listener/隧道/连接，因此重试是安全的。
-		sa.config.DriverConfig["deviceID"] = sa.config.DeviceID
-		var lastErr error
-		for attempt := 1; attempt <= driverInitAttempts; attempt++ {
-			androidDriver, err := scrcpy.New(sa.config.DriverConfig)
-			if err == nil {
-				sa.driver = androidDriver
-				if attempt > 1 {
-					log.Printf("Android driver initialized on attempt %d/%d", attempt, driverInitAttempts)
-				}
-				break
-			}
-			lastErr = err
-			log.Printf("Failed to initialize Android driver (attempt %d/%d): %v", attempt, driverInitAttempts, err)
-			if attempt < driverInitAttempts {
-				time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
-			}
-		}
-		if sa.driver == nil {
-			return lastErr
-		}
-	default:
+	if sa.config.DeviceType != DEVICE_TYPE_ANDROID {
 		log.Printf("Unsupported device type: %s", sa.config.DeviceType)
 		return fmt.Errorf("unsupported device type: %s", sa.config.DeviceType)
 	}
-	sa.driverCaps = sa.driver.Capabilities()
+	// 初始化 Android Driver（失败有限重试）
+	//
+	// scrcpy 会话启动是一次性握手：设备端 scrcpy-server 起得慢、上一会话的
+	// socket/端口尚未释放等，都会让读取设备元数据时直接拿到 EOF，用户看到的
+	// 就是“服务器错误: failed to ensure agent: EOF”。这类失败多为瞬时且可恢复，
+	// 而 scrcpy.New 的失败路径会释放 listener/隧道/连接，因此重试是安全的。
+	sa.config.DriverConfig["deviceID"] = sa.config.DeviceID
+	var lastErr error
+	for attempt := 1; attempt <= driverInitAttempts; attempt++ {
+		androidDriver, err := scrcpy.New(sa.config.DriverConfig)
+		if err == nil {
+			sa.driver = androidDriver
+			if attempt > 1 {
+				log.Printf("Android driver initialized on attempt %d/%d", attempt, driverInitAttempts)
+			}
+			break
+		}
+		lastErr = err
+		log.Printf("Failed to initialize Android driver (attempt %d/%d): %v", attempt, driverInitAttempts, err)
+		if attempt < driverInitAttempts {
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+		}
+	}
+	if sa.driver == nil {
+		return lastErr
+	}
+
 	sa.videoCh, sa.audioCh, sa.controlCh = sa.driver.GetReceivers()
 	return nil
 }
@@ -150,7 +147,7 @@ func (sa *Agent) PLIRequest() {
 }
 
 func (sa *Agent) HandleEvent(raw []byte) error {
-	if !sa.driverCaps.CanControl {
+	if !sa.driver.Capabilities().CanControl {
 		return fmt.Errorf("driver does not support control events")
 	}
 	event, err := sa.parseEvent(raw)
@@ -158,6 +155,5 @@ func (sa *Agent) HandleEvent(raw []byte) error {
 		log.Printf("[agent] Failed to parse control event: %v", err)
 		return err
 	}
-	// log.Printf("Parsed control event: %+v", event)
 	return sa.driver.SendEvent(event)
 }

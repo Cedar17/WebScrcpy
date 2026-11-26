@@ -123,7 +123,7 @@ func (wm *WebMaster) handleListDevices(c *gin.Context) {
 }
 func (wm *WebMaster) handleDeviceConfigDescription(c *gin.Context) {
  switch c.Query("device_type") {
- case sagent.DEVICE_TYPE_ANDROID: c.JSON(200, scrcpy.ConfigDescription(c.Query("device_id")))
+ case sagent.DEVICE_TYPE_ANDROID: c.JSON(200, scrcpy.ConfigDescription())
  case "universal": c.JSON(200, sagent.ConfigDescription())
  default: c.JSON(400, gin.H{"error": "Only local Android is supported"})
  }

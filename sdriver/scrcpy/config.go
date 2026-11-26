@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	SCRCPY_SERVER_ANDROID_DST = "/data/local/tmp/scrcpy-server"
 	// ⚠️ scrcpy server 会强制校验客户端版本（server 端 Options.java 里比对
 	// BuildConfig.VERSION_NAME），本常量必须与内嵌 jar 的版本**精确一致**，
 	// 否则 server 会以 "The server version (X) does not match the client (Y)"
@@ -19,8 +18,7 @@ const (
 //go:embed bin/scrcpy-server-v5.0.1
 var scrcpyServerData embed.FS
 
-// Receive an optional params
-func ConfigDescription(opt string) []sdriver.ConfigParamDescription {
+func ConfigDescription() []sdriver.ConfigParamDescription {
 	encoderList := LocalVideoEncoderList()
 
 	return []sdriver.ConfigParamDescription{
