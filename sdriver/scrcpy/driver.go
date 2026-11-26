@@ -132,7 +132,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}()
 
 	log.Printf("[scrcpy] driver config: %v", config)
-	video_codec_options := ""
 	max_size, err := strconv.Atoi(config["max_size"])
 	if err != nil {
 		max_size = 3840
@@ -159,9 +158,8 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		config["video_bit_rate"] = "4M"
 	}
 	// TCP has no SDP negotiation; retain explicitly selected encoder options.
-	video_codec_options_user := config["video_codec_options"]
-	if video_codec_options_user != "" {
-		video_codec_options = video_codec_options_user
+	video_codec_options := config["video_codec_options"]
+	if video_codec_options != "" {
 		log.Printf("Using user-provided video codec options: %s", video_codec_options)
 	}
 
@@ -183,7 +181,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		"video_encoder": config["video_encoder"],
 	}
 	if config["video_encoder"] != "" {
-		options["video_encoder"] = config["video_encoder"]
 		log.Printf("Using user-specified video encoder: %s", config["video_encoder"])
 	}
 	if config["no_video_codec_options"] == "true" {

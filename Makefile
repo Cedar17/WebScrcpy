@@ -1,7 +1,6 @@
 .PHONY: all ci clean
 DIST_DIR ?= dist
-SUFFIX ?= -android-arm64
-MAIN_OUT := $(DIST_DIR)/webscreen$(SUFFIX)
+MAIN_OUT := $(DIST_DIR)/webscreen-android-arm64
 
 all: ci
 ci:

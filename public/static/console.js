@@ -250,7 +250,7 @@ function startStream(serial) {
     const config = ensureDeviceConfig(device);
     const drv = { ...(config.driver_config || {}) };
 
-    let finalConfig = {
+    const finalConfig = {
         device_type: config.device_type,
         device_id: config.device_id || serial,
         device_ip: config.device_ip || '0',
@@ -259,10 +259,7 @@ function startStream(serial) {
         use_local_timestamp: config.use_local_timestamp || false,
         driver_config: drv
     };
-    
-    if (config.device_type == 'android') {
-    finalConfig.driver_config.deviceID = config.device_ip || '';
-    }
+ 
     console.log('Starting stream with config:', finalConfig);
     sessionStorage.setItem('webscreen_device_configs_now', JSON.stringify(finalConfig));
     showToast(i18n.t('starting_stream'));

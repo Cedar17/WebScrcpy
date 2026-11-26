@@ -80,7 +80,6 @@ func (sa *Agent) InitDriver() error {
 	// socket/端口尚未释放等，都会让读取设备元数据时直接拿到 EOF，用户看到的
 	// 就是“服务器错误: failed to ensure agent: EOF”。这类失败多为瞬时且可恢复，
 	// 而 scrcpy.New 的失败路径会释放 listener/隧道/连接，因此重试是安全的。
-	sa.config.DriverConfig["deviceID"] = sa.config.DeviceID
 	var lastErr error
 	for attempt := 1; attempt <= driverInitAttempts; attempt++ {
 		androidDriver, err := scrcpy.New(sa.config.DriverConfig)
