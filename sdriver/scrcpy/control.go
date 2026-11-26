@@ -8,30 +8,15 @@ import (
 
 // control messages
 const TYPE_INJECT_KEYCODE uint8 = 0               //输入入键盘
-const TYPE_INJECT_TEXT uint8 = 1                  //输入文本
 const TYPE_INJECT_TOUCH_EVENT uint8 = 2           //输入触摸事件
 const TYPE_INJECT_SCROLL_EVENT uint8 = 3          //输入滚动事件
-const TYPE_BACK_OR_SCREEN_ON uint8 = 4            //返回或者屏幕开
-const TYPE_EXPAND_NOTIFICATION_PANEL uint8 = 5    //展开通知面板
-const TYPE_EXPAND_SETTINGS_PANEL uint8 = 6        //展开设置面板
-const TYPE_COLLAPSE_PANELS uint8 = 7              //收起面板
-const TYPE_GET_CLIPBOARD uint8 = 8                //获取剪贴板
-const TYPE_SET_CLIPBOARD uint8 = 9                //设置剪贴板
-const TYPE_SET_DISPLAY_POWER uint8 = 10           //关闭屏幕
 const TYPE_ROTATE_DEVICE uint8 = 11               //旋转屏幕
-const TYPE_UHID_CREATE uint8 = 12                 //创建uhid
-const TYPE_UHID_INPUT uint8 = 13                  //uhid输入
-const TYPE_UHID_DESTROY uint8 = 14                //销毁uhid
-const TYPE_OPEN_HARD_KEYBOARD_SETTINGS uint8 = 15 //打开硬件键盘设置
-const TYPE_START_APP uint8 = 16                   //启动应用
 const TYPE_RESET_VIDEO uint8 = 17
 const TYPE_REQUEST_IDR uint8 = TYPE_RESET_VIDEO
 
 
 // Device -> Client messages
 const DEVICE_MSG_TYPE_CLIPBOARD = 0
-const DEVICE_MSG_TYPE_ACK_CLIPBOARD = 1
-const DEVICE_MSG_TYPE_UHID_OUTPUT = 2
 
 // | **字段**         | **长度 (Byte)** | **说明**                                                                             |
 // | -------------- | ------------- | ---------------------------------------------------------------------------------- |
@@ -49,7 +34,7 @@ func (da *ScrcpyDriver) SendTouchEvent(e *sdriver.TouchEvent) {
 	if da.controlConn == nil {
 		return
 	}
-	// 1. 预分配一个固定大小的字节切片 (Scrcpy 协议触摸包固定 28 字节)
+	// 1. 预分配一个固定大小的字节切片 (Scrcpy 协议触摸包固定 32 字节)
 	// 这里的 buf 可以在对象池(sync.Pool)里复用，进一步减少 GC
 	buf := make([]byte, 32)
 	if uint8(e.Type()) != TYPE_INJECT_TOUCH_EVENT {
@@ -294,7 +279,6 @@ func (da *ScrcpyDriver) KeyFrameRequest() error {
 	}
 	log.Println("⚡ Request KeyFrame via Control Conn...")
 	msg := []byte{TYPE_REQUEST_IDR}
-	//<-da.VideoChan
 	_, err := da.controlConn.Write(msg)
 	if err != nil {
 		log.Printf("Error sending keyframe request: %v\n", err)

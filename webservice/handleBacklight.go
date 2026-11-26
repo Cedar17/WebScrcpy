@@ -72,12 +72,11 @@ echo WEBSREEN_BACKLIGHT_OK
 `
 
 type backlightRequest struct {
-	Serial string `json:"serial"`
 	Off    *bool  `json:"off"`
 }
 
 // Execute the existing local backlight script only on this Android device.
-func runDeviceShell(_ string, script string) (string, error) {
+func runDeviceShell(script string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	encoded := base64.StdEncoding.EncodeToString([]byte(script))
@@ -98,17 +97,17 @@ func (wm *WebMaster) handleBacklight(c *gin.Context) {
 		script = backlightOffScript
 	}
 
-	out, err := runDeviceShell(req.Serial, script)
+	out, err := runDeviceShell(script)
 	trimmed := strings.TrimSpace(out)
 	if err != nil || !strings.Contains(trimmed, "WEBSREEN_BACKLIGHT_OK") {
 		msg := trimmed
 		if err != nil {
 			msg = trimmed + " " + err.Error()
 		}
-		log.Printf("[backlight] failed serial=%q off=%v: %s", req.Serial, *req.Off, msg)
+		log.Printf("[backlight] failed off=%v: %s", *req.Off, msg)
 		c.JSON(http.StatusInternalServerError, gin.H{"result": "error", "message": msg})
 		return
 	}
-	log.Printf("[backlight] serial=%q off=%v ok", req.Serial, *req.Off)
+	log.Printf("[backlight] off=%v ok", *req.Off)
 	c.JSON(http.StatusOK, gin.H{"result": "success", "off": *req.Off})
 }

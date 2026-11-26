@@ -163,7 +163,7 @@ func tcpNALUs(data []byte) [][]byte {
 			continue
 		}
 		if start >= 0 && i > start {
-			if i > start { units = append(units, data[start:i]) }
+			units = append(units, data[start:i])
 		}
 		i += n
 		start = i
@@ -176,7 +176,7 @@ func tcpNALUs(data []byte) [][]byte {
 
 func (s *tcpSession) video(box sdriver.AVBox) {
 	if len(box.Data) == 0 { return }
-	// The legacy RTP driver strips the leading start code on ordinary frames.
+	// The driver strips the leading start code on ordinary frames.
 	// MSE muxers require a complete Annex-B stream.
 	if !bytes.HasPrefix(box.Data, []byte{0, 0, 1}) && !bytes.HasPrefix(box.Data, []byte{0, 0, 0, 1}) {
 		box.Data = append([]byte{0, 0, 0, 1}, box.Data...)

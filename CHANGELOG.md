@@ -9,6 +9,7 @@
 - Consolidate tiny source files and use the concrete Scrcpy driver directly, eliminating the single-function utils package and the unused generic driver abstraction.
 - Group driver lifecycle, control and keyframe methods by responsibility; consolidate connection settings and screen presentation helpers.
 - Remove unreachable TCP socket setup from the local Unix-socket driver, redundant wrappers and stale browser rendering/loading paths.
+- Remove unused scrcpy protocol declarations, obsolete remote-device backlight identifiers, and a duplicate NAL boundary check.
 - Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
 
 ## 1.3.0 — Android-only TCP
