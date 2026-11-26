@@ -100,7 +100,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 
 	scrcpyServerPath, err := writeLocalScrcpyServer(data)
 	if err != nil { return nil, err }
-	if !da.supportOpusAudio() {
+	if !LocalSupportsOpusAudio() {
 		config["audio"] = "false"
 		log.Println("[scrcpy] Device does not support Opus audio encoding, disabling audio.")
 		da.ControlChan <- sdriver.TextMsgEvent{Msg: "[scrcpy] Device does not support Opus audio encoding, disabling audio."}
@@ -109,7 +109,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	streams := 1
 	if config["audio"] == "true" { streams++ }
 	if config["control"] == "true" { streams++ }
-	var listener net.Listener = newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
+	listener := newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
 	// 失败时必须收尾：listener 不关会让 tcp 端口 / 抽象 socket 一直被占，
 	// reverse 隧道与已建立的连接也会残留下来，下一次会话就会撞端口或连到残留的
 	// server，在读取设备元数据时再次拿到 EOF —— 这正是用户偶尔看到的
@@ -129,7 +129,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 				c.Close()
 			}
 		}
-		da.cleanupTunnel()
+		da.stopLocalServer()
 	}()
 
 	log.Printf("[scrcpy] driver config: %v", config)
@@ -208,21 +208,14 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}
 	// log.Println("Scrcpy server started successfully")
 	// conns := make([]net.Conn, 3)
-	log.Println("start tcp listening")
-
-	// 设置一个总的超时时间，如果在这个时间内没有建立所有连接，就认为失败
-	// scrcpy-server 启动失败通常会很快退出，或者根本连不上
-	timeout := time.Second * 5
-	if tcpListener, ok := listener.(*net.TCPListener); ok {
-		tcpListener.SetDeadline(time.Now().Add(timeout))
-	}
+	log.Println("Connecting to local scrcpy sockets")
 
 	if options["video"] == "true" {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
 			listener.Close()
-			da.cleanupTunnel()
+			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		err = da.readDeviceMeta(conn)
@@ -239,7 +232,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
 			listener.Close()
-			da.cleanupTunnel()
+			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.assignConn(conn)
@@ -249,7 +242,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
 			listener.Close()
-			da.cleanupTunnel()
+			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.controlConn = conn
@@ -260,22 +253,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}
 
 	listener.Close()
-
-	// 甜点值
-	if da.videoConn != nil {
-		if tcpConn, ok := da.videoConn.(*net.TCPConn); ok {
-			tcpConn.SetReadBuffer(4 * 1024 * 1024)
-		}
-	}
-	if da.audioConn != nil {
-		if tcpConn, ok := da.audioConn.(*net.TCPConn); ok {
-			tcpConn.SetReadBuffer(64 * 1024)
-		}
-	}
-
-	// 设更合理的读缓冲区大小
-	// da.videoConn.(*net.TCPConn).SetReadBuffer(2 * 1024 * 1024)
-	// da.audioConn.(*net.TCPConn).SetReadBuffer(64 * 1024)
 
 	setupOK = true
 	return da, nil

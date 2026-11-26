@@ -63,7 +63,7 @@ func writeLocalScrcpyServer(data []byte) (string, error) {
 	return LOCAL_SERVER_PATH, nil
 }
 
-// abstractListener mimics net.Listener on top of the abstract unix socket
+// abstractListener connects to the abstract unix socket
 // created by the scrcpy server.
 //
 // The scrcpy server accepts every stream connection (video, audio, control)
@@ -80,7 +80,7 @@ type abstractListener struct {
 	closed    bool
 }
 
-func newAbstractListener(name string, timeout time.Duration, count int) net.Listener {
+func newAbstractListener(name string, timeout time.Duration, count int) *abstractListener {
 	if count < 1 {
 		count = 1
 	}
@@ -141,12 +141,7 @@ func (l *abstractListener) Close() error {
 	return nil
 }
 
-func (l *abstractListener) Addr() net.Addr {
-	return &net.UnixAddr{Name: l.socketName(), Net: "unix"}
-}
-
-// toScrcpyArgv builds the argv used to start the scrcpy server locally. It is
-// the argv equivalent of toScrcpyCommand (which is used over adb shell).
+// toScrcpyArgv builds the argv used to start the scrcpy server locally.
 func toScrcpyArgv(options map[string]string) []string {
 	version := options["Version"]
 	args := []string{"/", "com.genymobile.scrcpy.Server", version}
@@ -223,11 +218,6 @@ func (da *ScrcpyDriver) stopLocalServer() {
 	// asynchronous pkill would kill the freshly started server as well.
 	// The app kills leftover servers itself when the whole service is stopped.
 }
-
-// cleanupTunnel releases the transport resources of the current session.
-func (da *ScrcpyDriver) cleanupTunnel() { da.stopLocalServer() }
-
-func (da *ScrcpyDriver) supportOpusAudio() bool { return LocalSupportsOpusAudio() }
 
 // ---------------------------------------------------------------------------
 // Local codec probing (the adb path runs `adb shell grep` on the same files)
