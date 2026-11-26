@@ -42,8 +42,8 @@ func ConfigDescription() []sdriver.ConfigParamDescription {
 }
 
 type Agent struct {
-	driver     *scrcpy.ScrcpyDriver
-	config     AgentConfig
+	driver *scrcpy.ScrcpyDriver
+	config AgentConfig
 	// chan
 	videoCh   <-chan sdriver.AVBox
 	audioCh   <-chan sdriver.AVBox
@@ -147,7 +147,7 @@ func (sa *Agent) PLIRequest() {
 }
 
 func (sa *Agent) HandleEvent(raw []byte) error {
-	if !sa.driver.Capabilities().CanControl {
+	if sa.driver == nil || !sa.driver.Capabilities().CanControl {
 		return fmt.Errorf("driver does not support control events")
 	}
 	event, err := sa.parseEvent(raw)

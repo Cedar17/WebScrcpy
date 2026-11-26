@@ -49,8 +49,6 @@ func (da *ScrcpyDriver) SendTouchEvent(e *sdriver.TouchEvent) {
 	if da.controlConn == nil {
 		return
 	}
-	// log.Printf("sending touch event: %v\n", e)
-	// log.Printf("current video width height: %vx%v", da.VideoMeta.Width, da.VideoMeta.Height)
 	// 1. 预分配一个固定大小的字节切片 (Scrcpy 协议触摸包固定 28 字节)
 	// 这里的 buf 可以在对象池(sync.Pool)里复用，进一步减少 GC
 	buf := make([]byte, 32)
@@ -96,11 +94,6 @@ func (da *ScrcpyDriver) SendKeyEvent(e *sdriver.KeyEvent) {
 	}
 }
 
-// 	_, err := da.controlConn.Write(buf)
-// 	if err != nil {
-// 		log.Printf("Error sending key event: %v\n", err)
-// 	}
-// }
 
 func (da *ScrcpyDriver) RotateDevice() {
 	if da.controlConn == nil {
@@ -112,7 +105,6 @@ func (da *ScrcpyDriver) RotateDevice() {
 	if err != nil {
 		log.Printf("Error sending rotate command: %v\n", err)
 	}
-	// da.mediaMeta.Width, da.mediaMeta.Height = da.mediaMeta.Height, da.mediaMeta.Width
 }
 
 func (da *ScrcpyDriver) SendScrollEvent(e *sdriver.ScrollEvent) {
@@ -243,7 +235,6 @@ func (da *ScrcpyDriver) SendUHIDCreateEvent(e *sdriver.UHIDCreateEvent) {
 	// 8. Desc Data
 	copy(buf[offset:], e.ReportDesc)
 
-	// log.Printf("Sending UHID_CREATE (Final Fix): ID=%d NameLen=%d", e.ID, nameSize)
 
 	_, err := da.controlConn.Write(buf)
 	if err != nil {

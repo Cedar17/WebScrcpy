@@ -66,7 +66,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		videoBuffer: comm.NewLinearBuffer(0),
 		audioBuffer: comm.NewLinearBuffer(4 * 1024 * 1024), // 4MB 音频缓冲区
 
-		// scid: GenerateSCID(),
 		scid: "00000000",
 
 		capabilities: sdriver.DriverCaps{
@@ -177,8 +176,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		"video_codec":         config["video_codec"],
 		"video_codec_options": video_codec_options, // bitrate-mode=2 to enable CBR
 		"audio":               config["audio"],
-		// "audio_bit_rate":      config["audio_bit_rate"],
-		// "audio_codec_options": "durationUs=10000", // 10ms
 		"control":   config["control"],
 		"cleanup":   "true",
 		"log_level": "info",
@@ -195,9 +192,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}
 	if config["new_display"] == "true" {
 		options["new_display"] = fmt.Sprintf("%s/%d", config["resolution"], max_fps)
-		// options["start_app"] = config["start_app"]
 		log.Printf("Using new virtual display with resolution %s and max_fps %d", config["resolution"], max_fps)
-		// log.Printf("start_app: %s", config["start_app"])
 	}
 
 	options["tunnel_forward"] = "true"
@@ -206,8 +201,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		listener.Close()
 		return nil, err
 	}
-	// log.Println("Scrcpy server started successfully")
-	// conns := make([]net.Conn, 3)
 	log.Println("Connecting to local scrcpy sockets")
 
 	if options["video"] == "true" {
@@ -292,9 +285,6 @@ func (da *ScrcpyDriver) assignConn(conn net.Conn) error {
 		da.mediaMeta.AudioCodec = codecID
 		da.capabilities.CanAudio = true
 		log.Println("Audio Connection Established")
-		// default:
-		// 	da.controlConn = conn
-		// 	log.Println("Scrcpy Control Connection Established")
 	}
 	return nil
 }
@@ -312,9 +302,7 @@ func (da *ScrcpyDriver) readDeviceMeta(conn net.Conn) error {
 }
 
 func (da *ScrcpyDriver) updateVideoMetaFromSPS(sps []byte, codec string) {
-	// log.Printf("last SPS len=%d, new SPS len=%d", len(da.LastSPS), len(sps))
 	if da.LastSPS != nil && bytes.Equal(da.LastSPS, sps) {
-		// log.Println("SPS unchanged, no need to update video meta")
 		return
 	}
 	var spsInfo comm.SPSInfo

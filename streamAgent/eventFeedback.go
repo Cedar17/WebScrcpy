@@ -19,7 +19,6 @@ func (sa *Agent) FeedbackEventsUntil(done <-chan struct{}) iter.Seq[[]byte] {
 				if !ok { return }
 				event = e
 			}
-			// log.Printf("[Agent] Received event: %+v", event)
 			eType := event.Type()
 			switch eType {
 			case sdriver.EVENT_TYPE_RECEIVE_CLIPBOARD:

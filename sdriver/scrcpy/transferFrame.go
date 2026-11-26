@@ -43,7 +43,6 @@ func (da *ScrcpyDriver) convertVideoFrame() {
 			log.Println("Failed to read scrcpy frame header:", err)
 			return
 		}
-		// log.Println("header:", string(headerBuf[:]))
 
 		da.LastPTS = header.PTS
 		// showFrameHeaderInfo(frame.Header)
@@ -68,20 +67,11 @@ func (da *ScrcpyDriver) convertVideoFrame() {
 			continue
 		}
 		nalType = nalTypeF(payloadBuf[4]) // 注意：payloadBuf 前 4 字节是起始码
-		// log.Printf("ScrcpyDriver: isKeyFrame=%v, nal Type=%v, Size=%d bytes\n", header.IsKeyFrame, nalType, len(payloadBuf))
-		// parts := bytes.Split(payloadBuf, []byte{0x00, 0x00, 0x00, 0x01})
-		// for _, part := range parts {
-		// 	if len(part) == 0 {
-		// 		continue
-		// 	}
-		// 	log.Printf("NALU Part: nalType=%v, Size=%d bytes\n", nalTypeF(part[0]), len(part))
-		// }
 		if header.IsKeyFrame {
 			switch nalType {
 			case 5, 19, 20, 21: // H.264 IDR / H.265 IDR_W_RADL
 				da.sendWithCachedConfigFrame(da.LastPTS, payloadBuf)
 				da.LastIDR = createCopy(payloadBuf[4:], "last IDR") // 去掉起始码
-				// log.Printf("Cached new IDR frame, size=%d bytes\n", len(da.LastIDR))
 				continue
 			case 6, 39, 40: // H.264 SEI / H.265 Prefix/Suffix SEI
 				payloadBuf = PruneSEI(payloadBuf, da.mediaMeta.VideoCodec)
@@ -132,10 +122,6 @@ func (da *ScrcpyDriver) convertAudioFrame() {
 
 		// read frame payload
 		_, _ = io.ReadFull(da.audioConn, payloadBuf)
-		// if header.IsConfig {
-		// 	log.Println("[scrcpy driver]Received audio config frame, skipping...")
-		// 	continue
-		// }
 
 		da.AudioChan <- sdriver.AVBox{
 			Data:       payloadBuf,
