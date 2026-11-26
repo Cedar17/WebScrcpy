@@ -18,9 +18,6 @@ func main() {
 	host := flag.String("host", "0.0.0.0", "host to bind the server to")
 	port := flag.String("port", "8081", "server port")
 	pin := flag.String("pin", "", "initial PIN for web access")
-	// local-root runs webscreen on the Android device itself (needs root):
-	// no adb is used, the scrcpy server is started locally with app_process.
-	flag.Bool("local-root", true, "deprecated compatibility flag; only local Android mode is supported")
 	flag.Parse()
 	// pin should be 6 digits and only digits
 	if *pin != "" {
@@ -44,13 +41,12 @@ func main() {
 	defer stop()
 
 	pub, _ := fs.Sub(publicFS, "public")
-	webMaster := webservice.Default(pub)
+	webMaster := webservice.New(pub)
 	webMaster.SetPIN(*pin)
 
 	go webMaster.Serve(*host, *port)
 
 	<-ctx.Done()
-	log.Println("Gracefully closing")
-	webMaster.Close()
+	log.Println("WebScrcpy stopping")
 
 }

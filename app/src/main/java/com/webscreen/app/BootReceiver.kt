@@ -9,10 +9,7 @@ import android.util.Log
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
-        val action = intent?.action ?: return
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            return
-        }
+        if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
         val prefs = Prefs(context)
         if (!prefs.autoStart) {
             Log.i(TAG, "auto start disabled, nothing to do")

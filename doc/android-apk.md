@@ -15,7 +15,7 @@
 
 内嵌 scrcpy-server 5.0.1 经 app_process 在本机启动，通过抽象 Unix socket 与 Go 服务通信。浏览器通过同源 /screen/ws WebSocket 交换视频、音频和控制消息，采用 JMuxer/MSE 与 WebM/Opus。保留原有低延迟策略及 UHID 组设置。
 
-1.3.0 TCP 基线已由用户确认可用；Android-only 裁剪版仍需重新构建及真机回归：安装、启动、画面、触控、重连、旋转、音频、黑屏恢复、开机自启、PIN 及 VPN 访问。
+1.3.0 TCP 基线已由用户确认可用；1.4.0 清理版仍需重新构建及真机回归：安装、启动、画面、触控、重连、旋转、音频、黑屏恢复、开机自启、PIN 及 VPN 访问。
 
 HTTP/WS 默认不加密，PIN 不替代 TLS；仅在可信私网或安全 VPN 使用，不直接暴露公网。部分继承的 UI 样式和字体使用 CDN，尚不保证完全离线。
 

@@ -11,7 +11,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.Proxy
@@ -147,7 +146,6 @@ class WebScreenService : Service() {
         args.append("'").append(remote).append("'")
         args.append(" -host 0.0.0.0")
         args.append(" -port ").append(port)
-        args.append(" -local-root")
         if (prefs.pin.isNotEmpty()) {
             args.append(" -pin ").append(prefs.pin)
         }
@@ -486,5 +484,3 @@ class WebScreenService : Service() {
         }
     }
 }
-
-private fun File.isFile() = this.exists() && this.isFile

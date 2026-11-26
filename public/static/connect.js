@@ -1,31 +1,8 @@
 // TCP/MSE live playback settings (seconds, except the watchdog interval).
 const tcpLatency = sync => sync ? {target:0.18, accelerate:0.30, seek:0.65, rate:1.10} : {target:0.08, accelerate:0.15, seek:0.35, rate:1.15};
 
-// Load CONFIG from sessionStorage if available, otherwise use URL params or defaults
+// Load the local Android session configuration from sessionStorage.
 var CONFIG = (function () {
-
-    // // if url has ?debug, use hardcoded debug config
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('debug')) {
-        console.log("Using debug config from URL parameter");
-        return {
-            device_type: "sunshine",
-            device_id: "127.0.0.1:5555",
-            device_ip: "127.0.0.1",
-            device_port: "5555",
-            av_sync: false,
-            driver_config: {
-                max_fps: "60",
-                video_codec: "h265",
-                audio_codec: "opus",
-                video_bit_rate: "4000000",
-                audio: "true",
-                file_path: "test/test.h265",
-                deviceID: "emulator-5554",
-                // new_display: "1920x1080/60",
-            }
-        };
-    }
 
     // Try to load from sessionStorage first (set by console.js)
     const stored = sessionStorage.getItem('webscreen_device_configs_now');
@@ -34,18 +11,16 @@ var CONFIG = (function () {
         try {
             const parsed = JSON.parse(stored);
             console.log("Using stored config:", parsed);
-            // Clear it after reading to avoid stale data
-            // sessionStorage.removeItem('webscreen_device_configs_now');
             return parsed;
         } catch (e) {
             console.warn('Failed to parse stored config:', e);
         }
     }
 
-    // Fallback to hardcoded defaults for testing
+    // No active session: the caller returns to the console.
     return {
         device_type: "none",
-        device_id: "emulator-5554",
+        device_id: "",
         device_ip: "0",
         device_port: "0",
         av_sync: false,
@@ -65,7 +40,8 @@ let tcpReconnect = null;
 let tcpStopped = false;
 let tcpUI = null;
 
-function sendDataChannelMessage(channel, msg) {
+function sendControlMessage(msg) {
+    const channel = window.controlChannel;
     if (channel && channel.readyState === 'open') channel.send(msg);
 }
 
@@ -139,10 +115,9 @@ async function start() {
     const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')+location.host+'/screen/ws');
     socket.binaryType = 'arraybuffer';
     window.ws = socket;
-    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,lastVideo:Date.now(),opened:Date.now(),watchdog:null,firstFrame:false};
+    const s = {socket,muxer:null,audio:null,ready:false,lastPTS:null,lastArrival:null,params:[],paramBytes:0,queue:[],queueBytes:0,opened:Date.now(),watchdog:null,firstFrame:false};
     tcpCurrent = s;
-    const channel = label => ({
-        label,
+    window.controlChannel = {
         get readyState() { return s.ready && socket.readyState===WebSocket.OPEN ? 'open':'closed'; },
         get bufferedAmount() { return socket.bufferedAmount; },
         send(data) {
@@ -153,9 +128,7 @@ async function start() {
             }
             socket.send(data);
         }
-    });
-    window.dataChannelOrdered = channel('control-ordered');
-    window.dataChannelUnordered = channel('control-unordered');
+    };
     socket.onopen = () => socket.send(JSON.stringify(config));
     socket.onerror = () => console.warn('[tcp] websocket error');
     socket.onclose = () => tcpFail(s,'TCP connection disconnected');
@@ -194,7 +167,6 @@ async function start() {
         } else {
             s.muxer.feed(item);
         }
-        s.lastVideo=Date.now();
         s.firstFrame=true;
         tcpRetry=0;
         if(video.paused) video.play().catch(()=>{});
@@ -307,7 +279,6 @@ async function updateUIBasedOnCapabilities(caps) {
                 await loadScript('/static/capabilities/keyboard.js');
                 await loadScript('/static/capabilities/touch.js');
                 await loadScript('/static/capabilities/scroll.js');
-                await loadScript('/static/capabilities/buttons.js');
                 show('.feature-android-buttons');
                 show('.feature-control');
             }
@@ -320,7 +291,6 @@ async function updateUIBasedOnCapabilities(caps) {
         // Handle Clipboard
         if (caps.can_clipboard) {
             try {
-                // Add timestamp to force cache busting
                 await loadScript('/static/capabilities/clipboard.js');
                 show('.feature-clipboard');
             } catch (e) {
@@ -339,10 +309,6 @@ async function updateUIBasedOnCapabilities(caps) {
                 console.error("Failed to load UHID scripts", e);
             }
         }
-
-        await loadScript('/static/capabilities/keep_screen_on.js');
-        // 受控端黑屏（隐私保护）——与设备能力无关，始终加载
-        await loadScript('/static/capabilities/backlight.js');
 
     }
 

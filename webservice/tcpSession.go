@@ -163,7 +163,7 @@ func tcpNALUs(data []byte) [][]byte {
 			continue
 		}
 		if start >= 0 && i > start {
-			if i > start { units = append(units, data[start:i]) }
+			units = append(units, data[start:i])
 		}
 		i += n
 		start = i
@@ -176,7 +176,7 @@ func tcpNALUs(data []byte) [][]byte {
 
 func (s *tcpSession) video(box sdriver.AVBox) {
 	if len(box.Data) == 0 { return }
-	// The legacy RTP driver strips the leading start code on ordinary frames.
+	// The driver strips the leading start code on ordinary frames.
 	// MSE muxers require a complete Annex-B stream.
 	if !bytes.HasPrefix(box.Data, []byte{0, 0, 1}) && !bytes.HasPrefix(box.Data, []byte{0, 0, 0, 1}) {
 		box.Data = append([]byte{0, 0, 0, 1}, box.Data...)
@@ -321,12 +321,7 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 				s.feedback(event)
 			}
 		}()
-		if err := s.agent.StartChecked(); err != nil {
-			s.finish()
-			s.agent.Close()
-			delete(wm.tcpSessions,id)
-			return "",nil,err
-		}
+		s.agent.Start()
 	} else {
 		s.controlMu.Lock()
 		s.agent.PLIRequest()
@@ -335,7 +330,7 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 	return id,s,nil
 }
 
-func (wm *WebMaster) leaveTCP(id, deviceID string, s *tcpSession, c *tcpClient) {
+func (wm *WebMaster) leaveTCP(id string, s *tcpSession, c *tcpClient) {
 	c.close()
 	wm.tcpMu.Lock()
 	defer wm.tcpMu.Unlock()
@@ -366,7 +361,7 @@ func (wm *WebMaster) handleScreenTCP(ctx *gin.Context) {
 		_ = conn.WriteJSON(map[string]any{"status":"error","message":err.Error(),"stage":"tcp_init"})
 		return
 	}
-	defer wm.leaveTCP(id,config.DeviceID,s,c)
+	defer wm.leaveTCP(id,s,c)
 	go c.writer()
 	_ = conn.SetReadDeadline(time.Now().Add(tcpPongWait))
 	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(tcpPongWait)) })

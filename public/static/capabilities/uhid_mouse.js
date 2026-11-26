@@ -6,8 +6,8 @@
     // UHID 鼠标状态
     let uhidMouseEnabled = false;
     let uhidMouseInitialized = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
+
+
     let mouseButtons = 0; // bit 0=左键, bit 1=右键, bit 2=中键
 
     // 鼠标移动累积（用于批量发送）
@@ -28,7 +28,7 @@
         if (window.ws && window.ws.readyState === WebSocket.OPEN) {
             // window.ws.send(createUHIDDestroyPacket(1)); // 确保之前的设备被销毁
             // window.ws.send(createUHIDDestroyPacket());
-            sendDataChannelMessage(window.dataChannelOrdered, createUHIDDestroyPacket());
+            sendControlMessage(createUHIDDestroyPacket());
             console.log("UHID Mouse device destroyed (re-initializing)");
         } else {
             console.warn("WebSocket is not open. Cannot initialize UHID Mouse.");
@@ -37,7 +37,7 @@
         const packet = createUHIDCreatePacket();
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         // window.ws.send(packet);
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidMouseInitialized = true;
         window.isUHIDMouseEnabled = true;
         console.log("UHID Mouse device created");
@@ -54,7 +54,7 @@
         const packet = createUHIDDestroyPacket();
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         //     window.ws.send(packet);
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidMouseInitialized = false;
         uhidMouseEnabled = false;
         window.isUHIDMouseEnabled = false;
@@ -94,7 +94,7 @@
             // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
             //     window.ws.send(packet);
             // }
-            sendDataChannelMessage(window.dataChannelUnordered, packet);
+            sendControlMessage(packet);
 
             // 重置累积值
             pendingMouseMove.deltaX = 0;
@@ -138,7 +138,7 @@
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         //     window.ws.send(packet);
         // }
-        sendDataChannelMessage(window.dataChannelUnordered, packet);
+        sendControlMessage(packet);
     });
 
     remoteVideo.addEventListener('mouseup', (event) => {
@@ -157,7 +157,7 @@
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         //     window.ws.send(packet);
         // }
-        sendDataChannelMessage(window.dataChannelUnordered, packet);
+        sendControlMessage(packet);
     });
 
     remoteVideo.addEventListener('mousemove', (event) => {

@@ -6,13 +6,35 @@ import (
 	"webscreen/sdriver"
 )
 
+// control messages
+const TYPE_INJECT_KEYCODE uint8 = 0               //输入入键盘
+const TYPE_INJECT_TOUCH_EVENT uint8 = 2           //输入触摸事件
+const TYPE_INJECT_SCROLL_EVENT uint8 = 3          //输入滚动事件
+const TYPE_ROTATE_DEVICE uint8 = 11               //旋转屏幕
+const TYPE_RESET_VIDEO uint8 = 17
+const TYPE_REQUEST_IDR uint8 = TYPE_RESET_VIDEO
+
+
+// Device -> Client messages
+const DEVICE_MSG_TYPE_CLIPBOARD = 0
+
+// | **字段**         | **长度 (Byte)** | **说明**                                                                             |
+// | -------------- | ------------- | ---------------------------------------------------------------------------------- |
+// | **Type**       | 1             | 固定为 **2** (`INJECT_TOUCH_EVENT`)                                                   |
+// | **Action**     | 1             | **0**: Down (按下)<br><br>  <br><br>**1**: Up (抬起)<br><br>  <br><br>**2**: Move (移动) |
+// | **PointerID**  | 8 (uint64)    | 手指 ID。第一根手指通常是 0。多点触控时用不同 ID。                                                      |
+// | **Position X** | 4 (uint32)     | 屏幕 X 坐标 (像素)                                                                       |
+// | **Position Y** | 4 (uint32)     | 屏幕 Y 坐标 (像素)                                                                       |
+// | **Width**      | 2 (uint16)    | 屏幕宽 (用于归一化计算，通常填当前分辨率宽)                                                            |
+// | **Height**     | 2 (uint16)    | 屏幕高 (用于归一化计算，通常填当前分辨率高)                                                            |
+// | **Pressure**   | 2 (uint16)    | 压力值 (0~65535)，通常填 65535 (最大) 或 0 (抬起时)                                             |
+// | **Buttons**    | 4 (int32)     | 按键状态 (通常 0，鼠标点击时才用到)                                                               |
+
 func (da *ScrcpyDriver) SendTouchEvent(e *sdriver.TouchEvent) {
 	if da.controlConn == nil {
 		return
 	}
-	// log.Printf("sending touch event: %v\n", e)
-	// log.Printf("current video width height: %vx%v", da.VideoMeta.Width, da.VideoMeta.Height)
-	// 1. 预分配一个固定大小的字节切片 (Scrcpy 协议触摸包固定 28 字节)
+	// 1. 预分配一个固定大小的字节切片 (Scrcpy 协议触摸包固定 32 字节)
 	// 这里的 buf 可以在对象池(sync.Pool)里复用，进一步减少 GC
 	buf := make([]byte, 32)
 	if uint8(e.Type()) != TYPE_INJECT_TOUCH_EVENT {
@@ -57,11 +79,6 @@ func (da *ScrcpyDriver) SendKeyEvent(e *sdriver.KeyEvent) {
 	}
 }
 
-// 	_, err := da.controlConn.Write(buf)
-// 	if err != nil {
-// 		log.Printf("Error sending key event: %v\n", err)
-// 	}
-// }
 
 func (da *ScrcpyDriver) RotateDevice() {
 	if da.controlConn == nil {
@@ -73,7 +90,6 @@ func (da *ScrcpyDriver) RotateDevice() {
 	if err != nil {
 		log.Printf("Error sending rotate command: %v\n", err)
 	}
-	// da.mediaMeta.Width, da.mediaMeta.Height = da.mediaMeta.Height, da.mediaMeta.Width
 }
 
 func (da *ScrcpyDriver) SendScrollEvent(e *sdriver.ScrollEvent) {
@@ -204,7 +220,6 @@ func (da *ScrcpyDriver) SendUHIDCreateEvent(e *sdriver.UHIDCreateEvent) {
 	// 8. Desc Data
 	copy(buf[offset:], e.ReportDesc)
 
-	// log.Printf("Sending UHID_CREATE (Final Fix): ID=%d NameLen=%d", e.ID, nameSize)
 
 	_, err := da.controlConn.Write(buf)
 	if err != nil {
@@ -264,11 +279,40 @@ func (da *ScrcpyDriver) KeyFrameRequest() error {
 	}
 	log.Println("⚡ Request KeyFrame via Control Conn...")
 	msg := []byte{TYPE_REQUEST_IDR}
-	//<-da.VideoChan
 	_, err := da.controlConn.Write(msg)
 	if err != nil {
 		log.Printf("Error sending keyframe request: %v\n", err)
 		return err
 	}
+	return nil
+}
+
+func (sd *ScrcpyDriver) SendEvent(event sdriver.Event) error {
+	switch e := event.(type) {
+	case *sdriver.TouchEvent:
+		sd.SendTouchEvent(e)
+	case *sdriver.KeyEvent:
+		sd.SendKeyEvent(e)
+	case *sdriver.ScrollEvent:
+		sd.SendScrollEvent(e)
+	case *sdriver.RotateEvent:
+		sd.RotateDevice()
+	case *sdriver.GetClipboardEvent:
+		sd.SendGetClipboardEvent(e)
+	case *sdriver.SetClipboardEvent:
+		sd.SendSetClipboardEvent(e)
+	case *sdriver.UHIDCreateEvent:
+		sd.SendUHIDCreateEvent(e)
+	case *sdriver.UHIDInputEvent:
+		sd.SendUHIDInputEvent(e)
+	case *sdriver.UHIDDestroyEvent:
+		sd.SendUHIDDestroyEvent(e)
+	case *sdriver.IDRReqEvent:
+
+		sd.RequestIDR(false)
+	default:
+		log.Printf("ScrcpyDriver: Unhandled event type: %T", event)
+	}
+
 	return nil
 }

@@ -4,55 +4,8 @@
  * ----------------------------------------
  */
 const STORAGE_KEY = 'webscreen_device_configs';
-const IGNORED_STORAGE_KEY = 'webscreen_ignored_devices';
 let knownDevices = [];
 let activeConfigSerial = null;
-let ignoredDevices = loadIgnoredDevices();
-let showIgnored = false;
-
-function loadIgnoredDevices() {
-    try {
-        const stored = localStorage.getItem(IGNORED_STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch(e) { return []; }
-}
-
-function saveIgnoredDevices() {
-    localStorage.setItem(IGNORED_STORAGE_KEY, JSON.stringify(ignoredDevices));
-}
-
-function toggleShowIgnored() {
-    showIgnored = !showIgnored;
-    const btn = document.getElementById('toggleIgnoredBtn');
-    const icon = document.getElementById('toggleIgnoredIcon');
-    if (btn) {
-        if (showIgnored) {
-            btn.classList.add('bg-[#333]', 'text-white');
-            if (icon) icon.textContent = 'visibility';
-        } else {
-            btn.classList.remove('bg-[#333]', 'text-white');
-            if (icon) icon.textContent = 'visibility_off';
-        }
-    }
-    renderDeviceList();
-}
-
-function ignoreDevice(serial) {
-    if (!ignoredDevices.includes(serial)) {
-        ignoredDevices.push(serial);
-        saveIgnoredDevices();
-        renderDeviceList();
-        showToast(i18n.t('device_ignored') || '设备已忽略');
-    }
-}
-
-function unignoreDevice(serial) {
-    ignoredDevices = ignoredDevices.filter(s => s !== serial);
-    saveIgnoredDevices();
-    renderDeviceList();
-    showToast(i18n.t('device_unignored') || '设备已取消忽略');
-}
-
 // Refactored structure to match new requirements (all in driver_config)
 const defaultConfig = {
     driver_config: {}
@@ -121,27 +74,13 @@ function formatBitrate(value) {
     return String(value);
 }
 
-function parseBitrate(str) {
-    if (!str) return 8000000;
-    const match = str.match(/^(\d+(?:\.\d+)?)\s*([KMG])?$/i);
-    if (!match) return 8000000;
-    let value = parseFloat(match[1]);
-    const unit = (match[2] || '').toUpperCase();
-    if (unit === 'K') value *= 1000;
-    else if (unit === 'M') value *= 1000000;
-    else if (unit === 'G') value *= 1000000000;
-    return Math.round(value);
-}
-
 // --- UI Rendering ---
 
 function renderDeviceList() {
     const grid = document.getElementById('deviceGrid');
     grid.innerHTML = '';
 
-    const visibleDevices = knownDevices;
-
-    if (!visibleDevices.length) {
+    if (!knownDevices.length) {
         grid.innerHTML = `
                     <div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-500 bg-[#1e1f20]/50 rounded-3xl border border-dashed border-gray-700">
                         <span class="material-symbols-rounded text-5xl mb-4 opacity-50">phonelink_off</span>
@@ -156,11 +95,10 @@ function renderDeviceList() {
         const serial = typeof device === 'string' ? device : device.device_id;
         const config = ensureDeviceConfig(device);
         const drv = config.driver_config || {};
-        const isIgnored = false;
 
         // Construct config tags
         let tagsHtml = '';
-        let dtype = config.device_type === 'xvfb' ? 'linux' : config.device_type;
+        const dtype = config.device_type;
         const cacheKey = `${dtype}_${serial}`;
         
         const generateBadges = (schema, currentValues) => {
@@ -200,11 +138,9 @@ function renderDeviceList() {
 
         const displayName = device.name || serial;
         const connChip = '<span class="text-xs text-gray-400">Local Android</span>';
-        const statusBadge = "";
-        const subLine = "";
         const footerAction = `<button class="local-stream-button w-full py-3 rounded-full bg-[#2a2b2c] group-hover:bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-primary)] font-medium">${i18n.t("start_stream")}</button>`;
         const card = document.createElement('div');
-        card.className = `card ${isIgnored ? 'opacity-40 grayscale' : ''} rounded-[24px] p-5 flex flex-col justify-between h-full border border-transparent hover:border-[#444] group transition-all`;
+        card.className = `card rounded-[24px] p-5 flex flex-col justify-between h-full border border-transparent hover:border-[#444] group transition-all`;
 
         card.innerHTML = `
                     <div>
@@ -217,9 +153,7 @@ function renderDeviceList() {
                                     <h3 class="font-medium text-lg leading-tight text-[#e3e3e3] truncate max-w-[140px] md:max-w-[180px]" title="${serial}">${displayName}</h3>
                                     <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                         ${connChip}
-                                        ${statusBadge}
                                     </div>
-                                    ${subLine ? `<div class="text-[11px] text-gray-500 mt-1 truncate max-w-[150px] md:max-w-[190px]" title="${serial}">${subLine}</div>` : ''}
                                 </div>
                             </div>
                             <div class="flex items-center">
@@ -241,7 +175,7 @@ function renderDeviceList() {
         return card;
     }
 
-    visibleDevices.forEach(buildDeviceCard);
+    knownDevices.forEach(buildDeviceCard);
 }
 
 // --- Actions ---
@@ -277,8 +211,7 @@ async function fetchDevices() {
         }
         for (const device of devices) {
             let activeConfigSerial = typeof device === 'string' ? device : device.device_id;
-            let dtype = device.device_type;
-            if (dtype === 'xvfb') dtype = 'linux';
+            const dtype = device.device_type;
             const cacheKey = `${dtype}_${activeConfigSerial}`;
             if (!schemaCache[cacheKey]) {
                 schemaPromises.push(
@@ -317,7 +250,7 @@ function startStream(serial) {
     const config = ensureDeviceConfig(device);
     const drv = { ...(config.driver_config || {}) };
 
-    let finalConfig = {
+    const finalConfig = {
         device_type: config.device_type,
         device_id: config.device_id || serial,
         device_ip: config.device_ip || '0',
@@ -326,10 +259,7 @@ function startStream(serial) {
         use_local_timestamp: config.use_local_timestamp || false,
         driver_config: drv
     };
-    
-    if (config.device_type == 'android') {
-    finalConfig.driver_config.deviceID = config.device_ip || '';
-    }
+ 
     console.log('Starting stream with config:', finalConfig);
     sessionStorage.setItem('webscreen_device_configs_now', JSON.stringify(finalConfig));
     showToast(i18n.t('starting_stream'));
@@ -375,11 +305,6 @@ async function showConfigModal(serial) {
     if (universalContainer) universalContainer.innerHTML = `<div class="flex justify-center py-8"><div class="spinner"></div></div>`;
     openModal('configModal');
 
-    // For compatibility with older versions, treat 'xvfb' as 'linux' for config schema purposes
-    if (config.device_type === 'xvfb') {
-        config.device_type = 'linux';
-    }
-    
     try {
         const [resDyn, resUni] = await Promise.all([
             fetch(`/api/device/configDescription?device_type=${config.device_type}&device_id=${encodeURIComponent(device.device_id)}`),

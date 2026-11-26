@@ -1,6 +1,5 @@
 package com.webscreen.app
 
-import android.os.Build
 import android.util.Log
 
 /**
@@ -82,6 +81,4 @@ object ServerState {
     fun snapshot(): List<String> = synchronized(logLock) { logLines.toList() }
 
     fun clearLog() = synchronized(logLock) { logLines.clear() }
-
-    fun deviceSummary(): String = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}"
 }

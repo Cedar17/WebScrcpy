@@ -7,16 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"webscreen/sdriver/scrcpy"
+	sagent "webscreen/streamAgent"
+
 	"github.com/gin-gonic/gin"
 
 )
 
 type WebMaster struct {
-	// WSConns []*websocket.Conn
 
 	tcpMu sync.Mutex
 	tcpSessions map[string]*tcpSession
-	// ScreenSessions map[string]ScreenSession
 
 	pin                  string
 	UnlockAttemptRecords map[string]UnlockAttemptRecord
@@ -28,21 +29,16 @@ type WebMaster struct {
 
 func New(staticFS fs.FS) *WebMaster {
 	wm := &WebMaster{
-		// ScreenSessions:       make(map[string]ScreenSession),
+
 		staticFS:             staticFS,
 		UnlockAttemptRecords: make(map[string]UnlockAttemptRecord),
-		// TCP-only browser transport: do not initialize the legacy RTC manager.
+
 	}
 	wm.jwtSecret = []byte(time.Now().String())
 	return wm
 }
 
-func Default(staticFS fs.FS) *WebMaster {
-	return New(staticFS)
-}
-
 func (wm *WebMaster) setRouter() {
-	// gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	// Periodic local readiness checks must not flood the Android UI log.
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/healthz"}}), gin.Recovery())
@@ -89,10 +85,6 @@ func (wm *WebMaster) setRouter() {
 	{
 		api.GET("/device/list", wm.handleListDevices)
 		api.GET("/device/configDescription", wm.handleDeviceConfigDescription)
-		// api.GET("/generalConfigDescription", wm.handleGeneralConfigDescription)
-
-		// api.POST("/device/discovery", wm.handleListDevicesDiscoveried)
-		// api.POST("/setPIN", wm.handleSetPIN)
 
 		// 受控端背光（隐私保护：屏幕黑，但不锁屏，串流照常）
 		api.POST("/screen/backlight", wm.handleBacklight)
@@ -103,7 +95,6 @@ func (wm *WebMaster) setRouter() {
 
 func (wm *WebMaster) SetPIN(pin string) {
 	// Set the PIN for web access
-	// This is a placeholder implementation
 	log.Printf("PIN authentication enabled: %t", pin != "")
 	wm.pin = pin
 }
@@ -116,9 +107,24 @@ func (wm *WebMaster) Serve(host, port string) {
 	}
 }
 
-func (wm *WebMaster) Close() {
-	// for k, v := range maps.All(wm.ScreenSessions) {
-	// 	log.Printf("closing session %v", k)
-	// 	v.Close()
-	// }
+type DeviceInfo struct {
+	Type     string `json:"device_type"`
+	DeviceID string `json:"device_id"`
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	Status   string `json:"status"`
+}
+
+func (wm *WebMaster) handleListDevices(c *gin.Context) {
+ c.JSON(200, gin.H{"devices": []DeviceInfo{{
+ Type: sagent.DEVICE_TYPE_ANDROID, DeviceID: scrcpy.LocalDeviceName(),
+ IP: "127.0.0.1", Port: 0, Status: "connected",
+ }}})
+}
+func (wm *WebMaster) handleDeviceConfigDescription(c *gin.Context) {
+ switch c.Query("device_type") {
+ case sagent.DEVICE_TYPE_ANDROID: c.JSON(200, scrcpy.ConfigDescription())
+ case "universal": c.JSON(200, sagent.ConfigDescription())
+ default: c.JSON(400, gin.H{"error": "Only local Android is supported"})
+ }
 }

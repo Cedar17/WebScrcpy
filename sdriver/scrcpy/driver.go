@@ -15,7 +15,6 @@ import (
 	"time"
 	"webscreen/sdriver"
 	"webscreen/sdriver/comm"
-	"webscreen/utils"
 )
 
 type ScrcpyDriver struct {
@@ -34,18 +33,14 @@ type ScrcpyDriver struct {
 	audioConn   net.Conn
 	controlConn net.Conn
 
-	options map[string]string
-
 	capabilities sdriver.DriverCaps
 
 	ctx       context.Context
 	cancel    context.CancelFunc
 	scid      string
-	// socketName string
 
 	// handle of the locally started scrcpy server
 	localServerCmd *exec.Cmd
-	localServerCtx context.Context
 
 	// dead becomes true as soon as the scrcpy session is gone, so that a new
 	// session rebuilds the pipeline instead of reusing a dead one.
@@ -71,7 +66,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		videoBuffer: comm.NewLinearBuffer(0),
 		audioBuffer: comm.NewLinearBuffer(4 * 1024 * 1024), // 4MB 音频缓冲区
 
-		// scid: GenerateSCID(),
 		scid: "00000000",
 
 		capabilities: sdriver.DriverCaps{
@@ -97,15 +91,9 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		config["video_codec"] = "h264"
 	}
 
-	data, err := scrcpyServerData.ReadFile(SCRCPY_EMBED_PATH)
-	if err != nil {
-		log.Printf("[scrcpy] read scrcpy-server failed: %v", err)
-		return nil, err
-	}
-
-	scrcpyServerPath, err := writeLocalScrcpyServer(data)
+	scrcpyServerPath, err := writeLocalScrcpyServer(scrcpyServerData)
 	if err != nil { return nil, err }
-	if !da.supportOpusAudio() {
+	if !LocalSupportsOpusAudio() {
 		config["audio"] = "false"
 		log.Println("[scrcpy] Device does not support Opus audio encoding, disabling audio.")
 		da.ControlChan <- sdriver.TextMsgEvent{Msg: "[scrcpy] Device does not support Opus audio encoding, disabling audio."}
@@ -114,7 +102,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	streams := 1
 	if config["audio"] == "true" { streams++ }
 	if config["control"] == "true" { streams++ }
-	var listener net.Listener = newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
+	listener := newAbstractListener(fmt.Sprintf("scrcpy_%s", da.scid), LOCAL_CONNECT_TIMEOUT, streams)
 	// 失败时必须收尾：listener 不关会让 tcp 端口 / 抽象 socket 一直被占，
 	// reverse 隧道与已建立的连接也会残留下来，下一次会话就会撞端口或连到残留的
 	// server，在读取设备元数据时再次拿到 EOF —— 这正是用户偶尔看到的
@@ -126,19 +114,16 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		if setupOK {
 			return
 		}
-		if listener != nil {
-			listener.Close()
-		}
+		listener.Close()
 		for _, c := range []net.Conn{da.videoConn, da.audioConn, da.controlConn} {
 			if c != nil {
 				c.Close()
 			}
 		}
-		da.cleanupTunnel()
+		da.stopLocalServer()
 	}()
 
 	log.Printf("[scrcpy] driver config: %v", config)
-	video_codec_options := ""
 	max_size, err := strconv.Atoi(config["max_size"])
 	if err != nil {
 		max_size = 3840
@@ -152,7 +137,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		video_bit_rate_str = "4M"
 		config["video_bit_rate"] = "4M" // 默认 4 Mbps
 	}
-	video_bit_rate, err := utils.ParseBitrate(video_bit_rate_str)
+	video_bit_rate, err := parseBitrate(video_bit_rate_str)
 	if err != nil {
 		return nil, fmt.Errorf("invalid video bit rate: %v", err)
 	}
@@ -165,9 +150,8 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		config["video_bit_rate"] = "4M"
 	}
 	// TCP has no SDP negotiation; retain explicitly selected encoder options.
-	video_codec_options_user := config["video_codec_options"]
-	if video_codec_options_user != "" {
-		video_codec_options = video_codec_options_user
+	video_codec_options := config["video_codec_options"]
+	if video_codec_options != "" {
 		log.Printf("Using user-provided video codec options: %s", video_codec_options)
 	}
 
@@ -182,8 +166,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		"video_codec":         config["video_codec"],
 		"video_codec_options": video_codec_options, // bitrate-mode=2 to enable CBR
 		"audio":               config["audio"],
-		// "audio_bit_rate":      config["audio_bit_rate"],
-		// "audio_codec_options": "durationUs=10000", // 10ms
 		"control":   config["control"],
 		"cleanup":   "true",
 		"log_level": "info",
@@ -191,7 +173,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		"video_encoder": config["video_encoder"],
 	}
 	if config["video_encoder"] != "" {
-		options["video_encoder"] = config["video_encoder"]
 		log.Printf("Using user-specified video encoder: %s", config["video_encoder"])
 	}
 	if config["no_video_codec_options"] == "true" {
@@ -200,35 +181,20 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}
 	if config["new_display"] == "true" {
 		options["new_display"] = fmt.Sprintf("%s/%d", config["resolution"], max_fps)
-		// options["start_app"] = config["start_app"]
 		log.Printf("Using new virtual display with resolution %s and max_fps %d", config["resolution"], max_fps)
-		// log.Printf("start_app: %s", config["start_app"])
 	}
 
 	options["tunnel_forward"] = "true"
 	options["send_dummy_byte"] = "false"
 	if err := da.startLocalScrcpyServer(options); err != nil {
-		listener.Close()
 		return nil, err
 	}
-	da.options = options
-	// log.Println("Scrcpy server started successfully")
-	// conns := make([]net.Conn, 3)
-	log.Println("start tcp listening")
-
-	// 设置一个总的超时时间，如果在这个时间内没有建立所有连接，就认为失败
-	// scrcpy-server 启动失败通常会很快退出，或者根本连不上
-	timeout := time.Second * 5
-	if tcpListener, ok := listener.(*net.TCPListener); ok {
-		tcpListener.SetDeadline(time.Now().Add(timeout))
-	}
+	log.Println("Connecting to local scrcpy sockets")
 
 	if options["video"] == "true" {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.cleanupTunnel()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		err = da.readDeviceMeta(conn)
@@ -244,8 +210,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.cleanupTunnel()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.assignConn(conn)
@@ -254,8 +218,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.cleanupTunnel()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.controlConn = conn
@@ -266,22 +228,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	}
 
 	listener.Close()
-
-	// 甜点值
-	if da.videoConn != nil {
-		if tcpConn, ok := da.videoConn.(*net.TCPConn); ok {
-			tcpConn.SetReadBuffer(4 * 1024 * 1024)
-		}
-	}
-	if da.audioConn != nil {
-		if tcpConn, ok := da.audioConn.(*net.TCPConn); ok {
-			tcpConn.SetReadBuffer(64 * 1024)
-		}
-	}
-
-	// 设更合理的读缓冲区大小
-	// da.videoConn.(*net.TCPConn).SetReadBuffer(2 * 1024 * 1024)
-	// da.audioConn.(*net.TCPConn).SetReadBuffer(64 * 1024)
 
 	setupOK = true
 	return da, nil
@@ -307,13 +253,8 @@ func (da *ScrcpyDriver) markDead(reason string) {
 	}
 }
 
-func (da *ScrcpyDriver) ShowDeviceInfo() {
-	log.Printf("[scrcpy] Device Name: %s", da.deviceName)
-	log.Printf("[scrcpy] media Meta: %v", da.mediaMeta)
-}
-
 // Please Ensure the input conn is not Control conn
-func (da *ScrcpyDriver) assignConn(conn net.Conn) error {
+func (da *ScrcpyDriver) assignConn(conn net.Conn) {
 	codecID := readCodecID(conn)
 	switch codecID {
 	case "h264", "h265", "av1":
@@ -326,11 +267,7 @@ func (da *ScrcpyDriver) assignConn(conn net.Conn) error {
 		da.mediaMeta.AudioCodec = codecID
 		da.capabilities.CanAudio = true
 		log.Println("Audio Connection Established")
-		// default:
-		// 	da.controlConn = conn
-		// 	log.Println("Scrcpy Control Connection Established")
 	}
-	return nil
 }
 
 func (da *ScrcpyDriver) readDeviceMeta(conn net.Conn) error {
@@ -346,16 +283,14 @@ func (da *ScrcpyDriver) readDeviceMeta(conn net.Conn) error {
 }
 
 func (da *ScrcpyDriver) updateVideoMetaFromSPS(sps []byte, codec string) {
-	// log.Printf("last SPS len=%d, new SPS len=%d", len(da.LastSPS), len(sps))
 	if da.LastSPS != nil && bytes.Equal(da.LastSPS, sps) {
-		// log.Println("SPS unchanged, no need to update video meta")
 		return
 	}
 	var spsInfo comm.SPSInfo
 	var err error
 	switch codec {
 	case "h264":
-		spsInfo, err = comm.ParseSPS_H264(sps, true)
+		spsInfo, err = comm.ParseSPS_H264(sps)
 	case "h265":
 		spsInfo, err = comm.ParseSPS_H265(sps)
 	default:
@@ -376,22 +311,19 @@ func (da *ScrcpyDriver) updateSize(width, height uint32) {
 	log.Printf("[scrcpy] Updated Video Meta from session packet: Width=%d, Height=%d", da.mediaMeta.Width, da.mediaMeta.Height)
 }
 
-func readScrcpyFrameHeader(headerBuf []byte, header *ScrcpyFrameHeader) error {
+func readScrcpyFrameHeader(headerBuf []byte, header *ScrcpyFrameHeader) {
 
 	ptsAndFlags := binary.BigEndian.Uint64(headerBuf[0:8])
 	packetSize := binary.BigEndian.Uint32(headerBuf[8:12])
 
 	// 提取标志位
-	isConfig := (headerBuf[0] & 0x40) != 0
 	isKeyFrame := (headerBuf[0] & 0x20) != 0
 
 	// 提取PTS (低61位)
 	pts := ptsAndFlags & 0x1FFFFFFFFFFFFFFF
-	header.IsConfig = isConfig
 	header.IsKeyFrame = isKeyFrame
 	header.PTS = pts
 	header.Size = packetSize
-	return nil
 }
 
 func readCodecID(conn net.Conn) string {
@@ -416,7 +348,72 @@ func createCopy(src []byte, context string) []byte {
 	return dst
 }
 
-func ShowFrameHeaderInfo(header ScrcpyFrameHeader) {
-	log.Printf("[scrcpy] Frame Header - PTS: %d, Size: %d, IsConfig: %v, IsKeyFrame: %v",
-		header.PTS, header.Size, header.IsConfig, header.IsKeyFrame)
+func parseBitrate(bitrateStr string) (int, error) {
+	var bitrate int
+	var multiplier int = 1
+
+	if len(bitrateStr) == 0 {
+		return 0, nil
+	}
+
+	lastChar := bitrateStr[len(bitrateStr)-1]
+	switch lastChar {
+	case 'K', 'k':
+		multiplier = 1000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	case 'M', 'm':
+		multiplier = 1000000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	case 'G', 'g':
+		multiplier = 1000000000
+		bitrateStr = bitrateStr[:len(bitrateStr)-1]
+	}
+
+	var err error
+	bitrate, err = strconv.Atoi(bitrateStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid bitrate format: %s", bitrateStr)
+	}
+
+	return bitrate * multiplier, nil
+}
+
+func (sd *ScrcpyDriver) GetReceivers() (<-chan sdriver.AVBox, <-chan sdriver.AVBox, chan sdriver.Event) {
+	return sd.VideoChan, sd.AudioChan, sd.ControlChan
+}
+
+func (sd *ScrcpyDriver) Start() {
+	log.Println("ScrcpyDriver: Start called")
+	if sd.videoConn != nil {
+		go sd.convertVideoFrame()
+	}
+	if sd.audioConn != nil {
+		go sd.convertAudioFrame()
+	}
+	if sd.controlConn != nil {
+		go sd.transferControlMsg()
+	}
+}
+
+func (sd *ScrcpyDriver) Capabilities() sdriver.DriverCaps {
+	return sd.capabilities
+}
+
+func (sd *ScrcpyDriver) MediaMeta() sdriver.MediaMeta {
+	return sd.mediaMeta
+}
+
+func (sd *ScrcpyDriver) Stop() {
+	if sd.videoConn != nil {
+		sd.videoConn.Close()
+	}
+	if sd.audioConn != nil {
+		sd.audioConn.Close()
+	}
+	if sd.controlConn != nil {
+		sd.controlConn.Close()
+	}
+	sd.stopLocalServer()
+	sd.cancel()
+	sd.markDead("会话已停止")
 }

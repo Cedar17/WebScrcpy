@@ -121,7 +121,7 @@ function sendKeyboardEvent(action, keyCode) {
         return;
     }
     const packet = createKeyPacket(action, keyCode);
-    sendDataChannelMessage(window.dataChannelOrdered, packet);
+    sendControlMessage(packet);
 }
 
 function createKeyPacket(action, keyCode) {

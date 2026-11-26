@@ -3,6 +3,7 @@ package scrcpy
 import (
 	"bytes"
 	"log"
+	"time"
 	"webscreen/sdriver"
 )
 
@@ -59,17 +60,13 @@ func (da *ScrcpyDriver) updateCache(payload []byte, codec string) {
 		}
 		switch nalType {
 		case 32: // VPS
-			// log.Println("cached VPS")
 			da.LastVPS = createCopy(nal, "LastVPS")
 		case 7, 33: // SPS
-			// log.Println("cached SPS")
 			da.updateVideoMetaFromSPS(nal, codec)
 			da.LastSPS = createCopy(nal, "LastSPS")
 		case 8, 34: // PPS
-			// log.Println("cached PPS")
 			da.LastPPS = createCopy(nal, "LastPPS")
 		case 5, 19, 20, 21: // IDR
-			// log.Println("cached IDR")
 			da.LastIDR = createCopy(nal, "LastIDR")
 		default:
 			// 其他类型暂不处理
@@ -119,14 +116,26 @@ func (da *ScrcpyDriver) sendWithCachedConfigFrame(PTS uint64, IDRFrame []byte) {
 	merged_data = append(merged_data, startCode...)
 	merged_data = append(merged_data, cachedPPS...)
 	merged_data = append(merged_data, IDRFrame...)
-	// log.Println("⚡ wrap with cached parameter sets")
-	// parts := bytes.Split(merged_data, startCode)
-	// for i, part := range parts {
-	// 	if len(part) == 0 {
-	// 		continue
-	// 	}
-	// 	log.Printf("  Part %d: NALU Type=%d, Size=%d bytes\n", i, (part[0]>>1)&0x3F, len(part))
-	// }
 
 	da.VideoChan <- sdriver.AVBox{Data: merged_data, PTS: PTS, NoDuration: false}
+}
+
+func (sd *ScrcpyDriver) RequestIDR(firstFrame bool) {
+	if len(sd.LastSPS) == 0 && len(sd.LastPPS) == 0 && len(sd.LastVPS) == 0 && len(sd.LastIDR) == 0 {
+		sd.KeyFrameRequest()
+		return
+	}
+
+	if firstFrame {
+		log.Println("First frame IDR request, sending cached key frame")
+		sd.sendCachedKeyFrame()
+		sd.KeyFrameRequest()
+		return
+	} else if time.Since(sd.LastIDRRequestTime) < 2*time.Second {
+		sd.sendCachedKeyFrame()
+		return
+	}
+
+	sd.KeyFrameRequest()
+
 }

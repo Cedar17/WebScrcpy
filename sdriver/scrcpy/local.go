@@ -1,10 +1,6 @@
 package scrcpy
 
-// This file implements the "on-device" (root, no adb) transport.
-//
-// The regular path drives a device from a host: adb push + adb reverse + a
-// local TCP listener. On the device itself there is no adb, but we do not
-// need one either:
+// Local Android transport (root, no adb):
 //
 //   - scrcpy-server is started locally with app_process (webscreen is already
 //     running as root there, the server drops back to the shell uid itself);
@@ -13,8 +9,7 @@ package scrcpy
 //     (video, audio, control) on it;
 //   - we simply connect to that abstract socket three times.
 //
-// Everything after the three connections (device metadata, frame framing,
-// WebRTC, control, clipboard, uhid) is shared with the adb based path.
+// The three connections carry device metadata, framed media and control messages.
 
 import (
 	"fmt"
@@ -68,7 +63,7 @@ func writeLocalScrcpyServer(data []byte) (string, error) {
 	return LOCAL_SERVER_PATH, nil
 }
 
-// abstractListener mimics net.Listener on top of the abstract unix socket
+// abstractListener connects to the abstract unix socket
 // created by the scrcpy server.
 //
 // The scrcpy server accepts every stream connection (video, audio, control)
@@ -85,7 +80,7 @@ type abstractListener struct {
 	closed    bool
 }
 
-func newAbstractListener(name string, timeout time.Duration, count int) net.Listener {
+func newAbstractListener(name string, timeout time.Duration, count int) *abstractListener {
 	if count < 1 {
 		count = 1
 	}
@@ -146,12 +141,7 @@ func (l *abstractListener) Close() error {
 	return nil
 }
 
-func (l *abstractListener) Addr() net.Addr {
-	return &net.UnixAddr{Name: l.socketName(), Net: "unix"}
-}
-
-// toScrcpyArgv builds the argv used to start the scrcpy server locally. It is
-// the argv equivalent of toScrcpyCommand (which is used over adb shell).
+// toScrcpyArgv builds the argv used to start the scrcpy server locally.
 func toScrcpyArgv(options map[string]string) []string {
 	version := options["Version"]
 	args := []string{"/", "com.genymobile.scrcpy.Server", version}
@@ -229,11 +219,6 @@ func (da *ScrcpyDriver) stopLocalServer() {
 	// The app kills leftover servers itself when the whole service is stopped.
 }
 
-// cleanupTunnel releases the transport resources of the current session.
-func (da *ScrcpyDriver) cleanupTunnel() { da.stopLocalServer() }
-
-func (da *ScrcpyDriver) supportOpusAudio() bool { return LocalSupportsOpusAudio() }
-
 // ---------------------------------------------------------------------------
 // Local codec probing (the adb path runs `adb shell grep` on the same files)
 // ---------------------------------------------------------------------------
@@ -281,7 +266,7 @@ func LocalSupportsOpusAudio() bool {
 func LocalVideoEncoderList() []string {
 	localEncodersOnce.Do(func() {
 		content := readLocalCodecXML()
-		// Same rule as the adb based path: only <MediaCodec> entries whose name
+		// Only <MediaCodec> entries whose name
 		// contains "encoder" and which are video codecs. This keeps non-encoder
 		// entries (e.g. <Feature name="max-video-encoder-input-buffers">) out of
 		// the list, they can never be used as a video_encoder.
@@ -327,4 +312,19 @@ func LocalDeviceName() string {
 		}
 	})
 	return localName
+}
+
+func scrcpyParamsToArgs(params map[string]string) []string {
+	var args []string
+	for k := range params {
+		//如果首字母大写，则跳过
+		if len(k) > 0 && k[0] >= 'A' && k[0] <= 'Z' {
+			continue
+		}
+
+		if v := params[k]; v != "" {
+			args = append(args, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+	return args
 }

@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, feature/local-tcp, feature/android-only ]
+    branches: [ main, feature/local-tcp, feature/android-only, refactor/cleanup-1.4 ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
@@ -61,12 +61,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Check TCP playback JavaScript
-        run: |
-          node --check public/static/console.js
-          node --check public/static/connect.js
-          node --check public/static/tcp-audio.js
-          node --check public/static/vendor/jmuxer.min.js
+      - name: Check browser JavaScript
+        run: find public -name '*.js' -print0 | xargs -0 -n 1 node --check
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -87,13 +83,8 @@ jobs:
 
       # Build only the Android server.
       - name: Build webscreen for android/arm64
-        env:
-          GOOS: android
-          GOARCH: arm64
-          CGO_ENABLED: '0'
         run: |
-          mkdir -p dist
-          make ci DIST_DIR=dist SUFFIX="-android-arm64"
+          make ci
           ls -l dist/
           file dist/webscreen-android-arm64
 

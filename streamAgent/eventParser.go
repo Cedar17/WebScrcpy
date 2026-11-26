@@ -11,21 +11,16 @@ func (a *Agent) parseEvent(raw []byte) (sdriver.Event, error) {
 		return nil, fmt.Errorf("empty event data")
 	}
 	eventType := sdriver.EventType(raw[0])
-	// log.Printf("Parsing control event of type: %d", eventType)
 
 	switch eventType {
-	// case sdriver.EVENT_TYPE_MOUSE:
-	// 	return a.parseMouseEvent(raw)
 	case sdriver.EVENT_TYPE_TOUCH:
 		return a.parseTouchEvent(raw)
-	case sdriver.EVENT_TYPE_MOUSE:
-		return a.parseMouseEvent(raw)
 	case sdriver.EVENT_TYPE_KEY:
 		return a.parseKeyEvent(raw)
 	case sdriver.EVENT_TYPE_SCROLL:
 		return a.parseScrollEvent(raw)
 	case sdriver.EVENT_TYPE_ROTATE:
-		return a.parseRotateEvent()
+		return &sdriver.RotateEvent{}, nil
 	case sdriver.EVENT_TYPE_UHID_CREATE:
 		return a.parseUHIDCreateEvent(raw)
 	case sdriver.EVENT_TYPE_UHID_INPUT:
@@ -37,7 +32,7 @@ func (a *Agent) parseEvent(raw []byte) (sdriver.Event, error) {
 	case sdriver.EVENT_TYPE_SET_CLIPBOARD:
 		return a.parseSetClipboardEvent(raw)
 	case sdriver.EVENT_TYPE_REQ_IDR:
-		return a.parseIDRReqEvent()
+		return &sdriver.IDRReqEvent{}, nil
 	default:
 		return nil, fmt.Errorf("unknown event type: %d", eventType)
 	}
@@ -57,25 +52,6 @@ func (a *Agent) parseTouchEvent(raw []byte) (*sdriver.TouchEvent, error) {
 		Width:     uint16(a.driver.MediaMeta().Width),
 		Height:    uint16(a.driver.MediaMeta().Height),
 	}
-	return e, nil
-}
-
-func (a *Agent) parseMouseEvent(raw []byte) (*sdriver.MouseEvent, error) {
-	// 1(Type) + 1(Action) + 4(X) + 4(Y) + 4(Buttons) + 2(WheelX) + 2(WheelY) = 18
-	if len(raw) != 18 {
-		return nil, fmt.Errorf("invalid mouse event message length: %d", len(raw))
-	}
-
-	e := &sdriver.MouseEvent{
-		// [0] 是 Type，调用者可能已经判断过了，这里跳过
-		Action:      raw[1],                                     // Offset 1
-		PosX:        binary.BigEndian.Uint32(raw[2:6]),          // Offset 2-5 (4 bytes)
-		PosY:        binary.BigEndian.Uint32(raw[6:10]),         // Offset 6-9 (4 bytes)
-		Buttons:     binary.BigEndian.Uint32(raw[10:14]),        // Offset 10-13 (4 bytes)
-		WheelDeltaX: int16(binary.BigEndian.Uint16(raw[14:16])), // Offset 14-15 (2 bytes)
-		WheelDeltaY: int16(binary.BigEndian.Uint16(raw[16:18])), // Offset 16-17 (2 bytes)
-	}
-
 	return e, nil
 }
 
@@ -106,14 +82,6 @@ func (a *Agent) parseScrollEvent(raw []byte) (*sdriver.ScrollEvent, error) {
 	return e, nil
 }
 
-func (a *Agent) parseRotateEvent() (*sdriver.RotateEvent, error) {
-	return &sdriver.RotateEvent{}, nil
-}
-
-func (a *Agent) parseIDRReqEvent() (*sdriver.IDRReqEvent, error) {
-	return &sdriver.IDRReqEvent{}, nil
-}
-
 func (a *Agent) parseUHIDCreateEvent(raw []byte) (*sdriver.UHIDCreateEvent, error) {
 	// 协议: [Type 1][ID 2][Vendor 2][Prod 2][NameLen 1][Name N][DescLen 2][Desc N]
 	const minHeaderSize = 8
@@ -139,7 +107,6 @@ func (a *Agent) parseUHIDCreateEvent(raw []byte) (*sdriver.UHIDCreateEvent, erro
 		ID:             binary.BigEndian.Uint16(raw[1:3]),
 		VendorID:       binary.BigEndian.Uint16(raw[3:5]),
 		ProductID:      binary.BigEndian.Uint16(raw[5:7]),
-		NameSize:       uint8(len(name)),
 		Name:           name,
 		ReportDescSize: reportDescSize,
 		ReportDesc:     raw[descSizeOffset+2 : descSizeOffset+2+int(reportDescSize)],
@@ -180,7 +147,6 @@ func (a *Agent) parseUHIDDestroyEvent(raw []byte) (*sdriver.UHIDDestroyEvent, er
 
 func (a *Agent) parseGetClipboardEvent(raw []byte) (*sdriver.GetClipboardEvent, error) {
 	// WS Packet: [Type 1]
-	// log.Printf("Parsing GetClipboardEvent, raw length: %d", len(raw))
 	CopyKey := raw[1]
 	e := &sdriver.GetClipboardEvent{
 		CopyKey: CopyKey,

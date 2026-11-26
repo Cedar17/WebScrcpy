@@ -35,14 +35,14 @@
     // 按键映射 (Bit positions)
     const BTN_A = 0;
     const BTN_B = 1;
-    const BTN_C = 2;
+
     const BTN_X = 3;
     const BTN_Y = 4;
-    const BTN_Z = 5;
+
     const BTN_L1 = 6;
     const BTN_R1 = 7;
-    const BTN_L2 = 8;
-    const BTN_R2 = 9;
+
+
     const BTN_SELECT = 10;
     const BTN_START = 11;
     const BTN_MODE = 12;   // Home/Guide
@@ -105,10 +105,10 @@
         if (uhidGamepadInitialized) return;
 
         // 尝试先销毁旧设备 (如果存在)
-        sendDataChannelMessage(window.dataChannelOrdered, createUHIDGamepadDestroyPacket());
+        sendControlMessage(createUHIDGamepadDestroyPacket());
 
         const packet = createUHIDGamepadCreatePacket();
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidGamepadInitialized = true;
         console.log("UHID Gamepad device created");
     }
@@ -117,7 +117,7 @@
         if (!uhidGamepadInitialized) return;
 
         const packet = createUHIDGamepadDestroyPacket();
-        sendDataChannelMessage(window.dataChannelOrdered, packet);
+        sendControlMessage(packet);
         uhidGamepadInitialized = false;
         uhidGamepadEnabled = false;
         console.log("UHID Gamepad device destroyed");
@@ -150,7 +150,7 @@
         // if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         //     window.ws.send(packet);
         // }
-        sendDataChannelMessage(window.dataChannelUnordered, packet);
+        sendControlMessage(packet);
     }
 
     // --- 3. 协议包构造函数 ---
