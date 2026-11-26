@@ -6,15 +6,9 @@ type Event interface {
 	Type() EventType
 }
 
-type SampleEvent interface {
-	Event
-	GetContent() []byte
-}
-
 const (
 	// Basic Events
 	EVENT_TYPE_KEY    EventType = 0x00
-	EVENT_TYPE_MOUSE  EventType = 0x01
 	EVENT_TYPE_TOUCH  EventType = 0x02
 	EVENT_TYPE_SCROLL EventType = 0x03
 
@@ -25,7 +19,6 @@ const (
 	EVENT_TYPE_RECEIVE_CLIPBOARD EventType = 0x17
 
 	// Command
-	EVENT_TYPE_DISPLAY_OFF EventType = 0x0A
 	EVENT_TYPE_ROTATE      EventType = 0x0B
 
 	// UHID Events
@@ -33,24 +26,9 @@ const (
 	EVENT_TYPE_UHID_INPUT   EventType = 0x0D
 	EVENT_TYPE_UHID_DESTROY EventType = 0x0E
 
-	EVENT_TYPE_OPEN_HARD_KEYBOARD_SETTINGS EventType = 0x0F
-	EVENT_TYPE_RESET_VIDEO                 EventType = 0x10
-
-	EVENT_TYPE_REQ_IDR EventType = EVENT_TYPE_RESET_VIDEO
+	EVENT_TYPE_REQ_IDR EventType = 0x10
 	// -> Web Toast Message
 	EVENT_TYPE_TEXT_MSG EventType = 0x64
-)
-
-const (
-	BUTTON_PRIMARY   uint32 = 1 << 0
-	BUTTON_SECONDARY uint32 = 1 << 1
-	BUTTON_TERTIARY  uint32 = 1 << 2
-)
-
-const (
-	COPY_KEY_NONE uint8 = 0
-	COPY_KEY_COPY uint8 = 1
-	COPY_KEY_CUT  uint8 = 2
 )
 
 type TouchEvent struct {
@@ -66,19 +44,6 @@ type TouchEvent struct {
 
 func (e TouchEvent) Type() EventType {
 	return EVENT_TYPE_TOUCH
-}
-
-type MouseEvent struct {
-	Action      byte
-	PosX        uint32
-	PosY        uint32
-	Buttons     uint32
-	WheelDeltaX int16
-	WheelDeltaY int16
-}
-
-func (e MouseEvent) Type() EventType {
-	return EVENT_TYPE_MOUSE
 }
 
 type KeyEvent struct {
@@ -115,7 +80,6 @@ type UHIDCreateEvent struct {
 	ID             uint16 // 设备 ID (对应官方的 id 字段)
 	VendorID       uint16
 	ProductID      uint16
-	NameSize       uint8
 	Name           []byte
 	ReportDescSize uint16
 	ReportDesc     []byte
@@ -173,10 +137,6 @@ type ReceiveClipboardEvent struct {
 
 func (e ReceiveClipboardEvent) Type() EventType {
 	return EVENT_TYPE_RECEIVE_CLIPBOARD
-}
-
-func (e ReceiveClipboardEvent) GetContent() []byte {
-	return e.Content
 }
 
 type TextMsgEvent struct {

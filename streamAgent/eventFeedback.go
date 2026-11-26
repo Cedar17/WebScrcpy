@@ -19,28 +19,19 @@ func (sa *Agent) FeedbackEventsUntil(done <-chan struct{}) iter.Seq[[]byte] {
 				if !ok { return }
 				event = e
 			}
-			eType := event.Type()
-			switch eType {
-			case sdriver.EVENT_TYPE_RECEIVE_CLIPBOARD:
-				event := event.(sdriver.SampleEvent)
-				content := event.GetContent()
-				msg := make([]byte, 1+len(content))
-				copy(msg[1:], content)
-				msg[0] = byte(sdriver.EVENT_TYPE_RECEIVE_CLIPBOARD)
-				if !yield(msg) {
-					return
-				}
-			case sdriver.EVENT_TYPE_TEXT_MSG:
-				event := event.(sdriver.TextMsgEvent)
-				content := []byte(event.Msg)
-				msg := make([]byte, 1+len(content))
-				copy(msg[1:], content)
-				msg[0] = byte(sdriver.EVENT_TYPE_TEXT_MSG)
-				if !yield(msg) {
-					return
-				}
+			var content []byte
+			switch e := event.(type) {
+			case sdriver.ReceiveClipboardEvent:
+				content = e.Content
+			case sdriver.TextMsgEvent:
+				content = []byte(e.Msg)
 			default:
-				log.Printf("Unhandled event type in ReceiveEvent: %d", eType)
+				log.Printf("Unhandled event type in ReceiveEvent: %d", event.Type())
+				continue
+			}
+			msg := append([]byte{byte(event.Type())}, content...)
+			if !yield(msg) {
+				return
 			}
 		}
 	}
