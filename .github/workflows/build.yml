@@ -61,12 +61,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Check TCP playback JavaScript
-        run: |
-          node --check public/static/console.js
-          node --check public/static/connect.js
-          node --check public/static/tcp-audio.js
-          node --check public/static/vendor/jmuxer.min.js
+      - name: Check browser JavaScript
+        run: find public -name '*.js' -print0 | xargs -0 -n 1 node --check
 
       - name: Set up Go
         uses: actions/setup-go@v5

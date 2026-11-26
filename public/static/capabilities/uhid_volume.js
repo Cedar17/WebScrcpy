@@ -6,7 +6,7 @@
  *   UHID 则是内核虚拟 HID 设备，对系统而言与插了一个真实外接键盘无异，
  *   兼容性最强 —— 与虚拟键盘/鼠标同一机制（已在真机验证可用）。
  *
- * 协议：复用前端 → Go 的自定义 dataChannel 消息（见 sdriver/scrcpy/messages.go）
+ * 协议：复用前端 → Go 的自定义 dataChannel 消息（见 sdriver/scrcpy/control.go）
  *   12 = UHID_CREATE, 13 = UHID_INPUT, 14 = UHID_DESTROY
  *   设备号：1=键盘(uhid_keyboard.js) 2=鼠标(uhid_mouse.js) 4=手柄(uhid_gamepad.js)
  *          → 本设备固定用 3
