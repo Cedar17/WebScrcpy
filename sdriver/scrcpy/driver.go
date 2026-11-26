@@ -91,13 +91,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		config["video_codec"] = "h264"
 	}
 
-	data, err := scrcpyServerData.ReadFile(SCRCPY_EMBED_PATH)
-	if err != nil {
-		log.Printf("[scrcpy] read scrcpy-server failed: %v", err)
-		return nil, err
-	}
-
-	scrcpyServerPath, err := writeLocalScrcpyServer(data)
+	scrcpyServerPath, err := writeLocalScrcpyServer(scrcpyServerData)
 	if err != nil { return nil, err }
 	if !LocalSupportsOpusAudio() {
 		config["audio"] = "false"
@@ -120,9 +114,7 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		if setupOK {
 			return
 		}
-		if listener != nil {
-			listener.Close()
-		}
+		listener.Close()
 		for _, c := range []net.Conn{da.videoConn, da.audioConn, da.controlConn} {
 			if c != nil {
 				c.Close()
@@ -195,7 +187,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 	options["tunnel_forward"] = "true"
 	options["send_dummy_byte"] = "false"
 	if err := da.startLocalScrcpyServer(options); err != nil {
-		listener.Close()
 		return nil, err
 	}
 	log.Println("Connecting to local scrcpy sockets")
@@ -204,8 +195,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		err = da.readDeviceMeta(conn)
@@ -221,8 +210,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.assignConn(conn)
@@ -231,8 +218,6 @@ func New(config map[string]string) (*ScrcpyDriver, error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[scrcpy] Accept failed (可能是 scrcpy-server 启动失败): %v", err)
-			listener.Close()
-			da.stopLocalServer()
 			return nil, fmt.Errorf("failed to accept connection from scrcpy-server: %v", err)
 		}
 		da.controlConn = conn
@@ -269,7 +254,7 @@ func (da *ScrcpyDriver) markDead(reason string) {
 }
 
 // Please Ensure the input conn is not Control conn
-func (da *ScrcpyDriver) assignConn(conn net.Conn) error {
+func (da *ScrcpyDriver) assignConn(conn net.Conn) {
 	codecID := readCodecID(conn)
 	switch codecID {
 	case "h264", "h265", "av1":
@@ -283,7 +268,6 @@ func (da *ScrcpyDriver) assignConn(conn net.Conn) error {
 		da.capabilities.CanAudio = true
 		log.Println("Audio Connection Established")
 	}
-	return nil
 }
 
 func (da *ScrcpyDriver) readDeviceMeta(conn net.Conn) error {
@@ -327,22 +311,19 @@ func (da *ScrcpyDriver) updateSize(width, height uint32) {
 	log.Printf("[scrcpy] Updated Video Meta from session packet: Width=%d, Height=%d", da.mediaMeta.Width, da.mediaMeta.Height)
 }
 
-func readScrcpyFrameHeader(headerBuf []byte, header *ScrcpyFrameHeader) error {
+func readScrcpyFrameHeader(headerBuf []byte, header *ScrcpyFrameHeader) {
 
 	ptsAndFlags := binary.BigEndian.Uint64(headerBuf[0:8])
 	packetSize := binary.BigEndian.Uint32(headerBuf[8:12])
 
 	// 提取标志位
-	isConfig := (headerBuf[0] & 0x40) != 0
 	isKeyFrame := (headerBuf[0] & 0x20) != 0
 
 	// 提取PTS (低61位)
 	pts := ptsAndFlags & 0x1FFFFFFFFFFFFFFF
-	header.IsConfig = isConfig
 	header.IsKeyFrame = isKeyFrame
 	header.PTS = pts
 	header.Size = packetSize
-	return nil
 }
 
 func readCodecID(conn net.Conn) string {
@@ -401,7 +382,7 @@ func (sd *ScrcpyDriver) GetReceivers() (<-chan sdriver.AVBox, <-chan sdriver.AVB
 	return sd.VideoChan, sd.AudioChan, sd.ControlChan
 }
 
-func (sd *ScrcpyDriver) Start() error {
+func (sd *ScrcpyDriver) Start() {
 	log.Println("ScrcpyDriver: Start called")
 	if sd.videoConn != nil {
 		go sd.convertVideoFrame()
@@ -412,7 +393,6 @@ func (sd *ScrcpyDriver) Start() error {
 	if sd.controlConn != nil {
 		go sd.transferControlMsg()
 	}
-	return nil
 }
 
 func (sd *ScrcpyDriver) Capabilities() sdriver.DriverCaps {

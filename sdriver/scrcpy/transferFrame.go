@@ -5,12 +5,10 @@ import (
 	"io"
 	"log"
 
-	// "bytes"
 	"webscreen/sdriver"
 )
 
 type ScrcpyFrameHeader struct {
-	IsConfig   bool
 	IsKeyFrame bool
 	PTS        uint64
 	Size       uint32
@@ -39,13 +37,9 @@ func (da *ScrcpyDriver) convertVideoFrame() {
 			continue
 		}
 
-		if err := readScrcpyFrameHeader(headerBuf[:], &header); err != nil {
-			log.Println("Failed to read scrcpy frame header:", err)
-			return
-		}
+		readScrcpyFrameHeader(headerBuf[:], &header)
 
 		da.LastPTS = header.PTS
-		// showFrameHeaderInfo(frame.Header)
 		frameSize := int(header.Size)
 
 		// 从 LinearBuffer 获取内存
@@ -113,10 +107,7 @@ func (da *ScrcpyDriver) convertAudioFrame() {
 			da.markDead("音频流中断")
 			return
 		}
-		if err := readScrcpyFrameHeader(headerBuf[:], &header); err != nil {
-			log.Println("Failed to read scrcpy audio frame header:", err)
-			return
-		}
+		readScrcpyFrameHeader(headerBuf[:], &header)
 		frameSize := int(header.Size)
 		payloadBuf := da.audioBuffer.Get(frameSize)
 

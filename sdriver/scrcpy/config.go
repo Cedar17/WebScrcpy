@@ -1,7 +1,7 @@
 package scrcpy
 
 import (
-	"embed"
+	_ "embed"
 	"webscreen/sdriver"
 )
 
@@ -10,13 +10,12 @@ const (
 	// BuildConfig.VERSION_NAME），本常量必须与内嵌 jar 的版本**精确一致**，
 	// 否则 server 会以 "The server version (X) does not match the client (Y)"
 	// 直接拒绝启动 —— 表现为所有串流全部失败。换 jar 时务必同步修改此处与
-	// SCRCPY_EMBED_PATH（含下面的 //go:embed 路径）。
+	// 下面的 //go:embed 路径。
 	SCRCPY_VERSION            = "5.0.1"
-	SCRCPY_EMBED_PATH         = "bin/scrcpy-server-v5.0.1"
 )
 
 //go:embed bin/scrcpy-server-v5.0.1
-var scrcpyServerData embed.FS
+var scrcpyServerData []byte
 
 func ConfigDescription() []sdriver.ConfigParamDescription {
 	encoderList := LocalVideoEncoderList()

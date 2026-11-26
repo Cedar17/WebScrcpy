@@ -321,12 +321,7 @@ func (wm *WebMaster) joinTCP(config sagent.AgentConfig, c *tcpClient) (string, *
 				s.feedback(event)
 			}
 		}()
-		if err := s.agent.StartChecked(); err != nil {
-			s.finish()
-			s.agent.Close()
-			delete(wm.tcpSessions,id)
-			return "",nil,err
-		}
+		s.agent.Start()
 	} else {
 		s.controlMu.Lock()
 		s.agent.PLIRequest()
