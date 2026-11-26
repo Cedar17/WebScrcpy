@@ -80,9 +80,7 @@ function renderDeviceList() {
     const grid = document.getElementById('deviceGrid');
     grid.innerHTML = '';
 
-    const visibleDevices = knownDevices;
-
-    if (!visibleDevices.length) {
+    if (!knownDevices.length) {
         grid.innerHTML = `
                     <div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-500 bg-[#1e1f20]/50 rounded-3xl border border-dashed border-gray-700">
                         <span class="material-symbols-rounded text-5xl mb-4 opacity-50">phonelink_off</span>
@@ -140,8 +138,6 @@ function renderDeviceList() {
 
         const displayName = device.name || serial;
         const connChip = '<span class="text-xs text-gray-400">Local Android</span>';
-        const statusBadge = "";
-        const subLine = "";
         const footerAction = `<button class="local-stream-button w-full py-3 rounded-full bg-[#2a2b2c] group-hover:bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-primary)] font-medium">${i18n.t("start_stream")}</button>`;
         const card = document.createElement('div');
         card.className = `card rounded-[24px] p-5 flex flex-col justify-between h-full border border-transparent hover:border-[#444] group transition-all`;
@@ -157,9 +153,7 @@ function renderDeviceList() {
                                     <h3 class="font-medium text-lg leading-tight text-[#e3e3e3] truncate max-w-[140px] md:max-w-[180px]" title="${serial}">${displayName}</h3>
                                     <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                         ${connChip}
-                                        ${statusBadge}
                                     </div>
-                                    ${subLine ? `<div class="text-[11px] text-gray-500 mt-1 truncate max-w-[150px] md:max-w-[190px]" title="${serial}">${subLine}</div>` : ''}
                                 </div>
                             </div>
                             <div class="flex items-center">
@@ -181,7 +175,7 @@ function renderDeviceList() {
         return card;
     }
 
-    visibleDevices.forEach(buildDeviceCard);
+    knownDevices.forEach(buildDeviceCard);
 }
 
 // --- Actions ---

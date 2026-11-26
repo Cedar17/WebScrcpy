@@ -284,7 +284,6 @@ async function updateUIBasedOnCapabilities(caps) {
                 await loadScript('/static/capabilities/keyboard.js');
                 await loadScript('/static/capabilities/touch.js');
                 await loadScript('/static/capabilities/scroll.js');
-                await loadScript('/static/capabilities/buttons.js');
                 show('.feature-android-buttons');
                 show('.feature-control');
             }
@@ -297,7 +296,6 @@ async function updateUIBasedOnCapabilities(caps) {
         // Handle Clipboard
         if (caps.can_clipboard) {
             try {
-                // Add timestamp to force cache busting
                 await loadScript('/static/capabilities/clipboard.js');
                 show('.feature-clipboard');
             } catch (e) {
@@ -318,8 +316,6 @@ async function updateUIBasedOnCapabilities(caps) {
         }
 
         await loadScript('/static/capabilities/keep_screen_on.js');
-        // 受控端黑屏（隐私保护）——与设备能力无关，始终加载
-        await loadScript('/static/capabilities/backlight.js');
 
     }
 
