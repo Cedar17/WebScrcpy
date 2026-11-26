@@ -7,6 +7,7 @@
 - Remove unused WebRTC structs, driver stubs and obsolete device-ignore UI code/translations.
 - Prune unused Android resources, old screenshot, redundant config types and unused browser control declarations.
 - Consolidate tiny source files and use the concrete Scrcpy driver directly, eliminating the single-function utils package and the unused generic driver abstraction.
+- Group driver lifecycle, control and keyframe methods by responsibility; consolidate connection settings and screen presentation helpers.
 - Keep the existing Android lifecycle, TCP protocol, media buffering, controls, authentication and signing unchanged.
 
 ## 1.3.0 — Android-only TCP

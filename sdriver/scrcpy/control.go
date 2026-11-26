@@ -6,6 +6,45 @@ import (
 	"webscreen/sdriver"
 )
 
+// control messages
+const TYPE_INJECT_KEYCODE uint8 = 0               //输入入键盘
+const TYPE_INJECT_TEXT uint8 = 1                  //输入文本
+const TYPE_INJECT_TOUCH_EVENT uint8 = 2           //输入触摸事件
+const TYPE_INJECT_SCROLL_EVENT uint8 = 3          //输入滚动事件
+const TYPE_BACK_OR_SCREEN_ON uint8 = 4            //返回或者屏幕开
+const TYPE_EXPAND_NOTIFICATION_PANEL uint8 = 5    //展开通知面板
+const TYPE_EXPAND_SETTINGS_PANEL uint8 = 6        //展开设置面板
+const TYPE_COLLAPSE_PANELS uint8 = 7              //收起面板
+const TYPE_GET_CLIPBOARD uint8 = 8                //获取剪贴板
+const TYPE_SET_CLIPBOARD uint8 = 9                //设置剪贴板
+const TYPE_SET_DISPLAY_POWER uint8 = 10           //关闭屏幕
+const TYPE_ROTATE_DEVICE uint8 = 11               //旋转屏幕
+const TYPE_UHID_CREATE uint8 = 12                 //创建uhid
+const TYPE_UHID_INPUT uint8 = 13                  //uhid输入
+const TYPE_UHID_DESTROY uint8 = 14                //销毁uhid
+const TYPE_OPEN_HARD_KEYBOARD_SETTINGS uint8 = 15 //打开硬件键盘设置
+const TYPE_START_APP uint8 = 16                   //启动应用
+const TYPE_RESET_VIDEO uint8 = 17
+const TYPE_REQUEST_IDR uint8 = TYPE_RESET_VIDEO
+
+
+// Device -> Client messages
+const DEVICE_MSG_TYPE_CLIPBOARD = 0
+const DEVICE_MSG_TYPE_ACK_CLIPBOARD = 1
+const DEVICE_MSG_TYPE_UHID_OUTPUT = 2
+
+// | **字段**         | **长度 (Byte)** | **说明**                                                                             |
+// | -------------- | ------------- | ---------------------------------------------------------------------------------- |
+// | **Type**       | 1             | 固定为 **2** (`INJECT_TOUCH_EVENT`)                                                   |
+// | **Action**     | 1             | **0**: Down (按下)<br><br>  <br><br>**1**: Up (抬起)<br><br>  <br><br>**2**: Move (移动) |
+// | **PointerID**  | 8 (uint64)    | 手指 ID。第一根手指通常是 0。多点触控时用不同 ID。                                                      |
+// | **Position X** | 4 (uint32)     | 屏幕 X 坐标 (像素)                                                                       |
+// | **Position Y** | 4 (uint32)     | 屏幕 Y 坐标 (像素)                                                                       |
+// | **Width**      | 2 (uint16)    | 屏幕宽 (用于归一化计算，通常填当前分辨率宽)                                                            |
+// | **Height**     | 2 (uint16)    | 屏幕高 (用于归一化计算，通常填当前分辨率高)                                                            |
+// | **Pressure**   | 2 (uint16)    | 压力值 (0~65535)，通常填 65535 (最大) 或 0 (抬起时)                                             |
+// | **Buttons**    | 4 (int32)     | 按键状态 (通常 0，鼠标点击时才用到)                                                               |
+
 func (da *ScrcpyDriver) SendTouchEvent(e *sdriver.TouchEvent) {
 	if da.controlConn == nil {
 		return
@@ -270,5 +309,35 @@ func (da *ScrcpyDriver) KeyFrameRequest() error {
 		log.Printf("Error sending keyframe request: %v\n", err)
 		return err
 	}
+	return nil
+}
+
+func (sd *ScrcpyDriver) SendEvent(event sdriver.Event) error {
+	switch e := event.(type) {
+	case *sdriver.TouchEvent:
+		sd.SendTouchEvent(e)
+	case *sdriver.KeyEvent:
+		sd.SendKeyEvent(e)
+	case *sdriver.ScrollEvent:
+		sd.SendScrollEvent(e)
+	case *sdriver.RotateEvent:
+		sd.RotateDevice()
+	case *sdriver.GetClipboardEvent:
+		sd.SendGetClipboardEvent(e)
+	case *sdriver.SetClipboardEvent:
+		sd.SendSetClipboardEvent(e)
+	case *sdriver.UHIDCreateEvent:
+		sd.SendUHIDCreateEvent(e)
+	case *sdriver.UHIDInputEvent:
+		sd.SendUHIDInputEvent(e)
+	case *sdriver.UHIDDestroyEvent:
+		sd.SendUHIDDestroyEvent(e)
+	case *sdriver.IDRReqEvent:
+
+		sd.RequestIDR(false)
+	default:
+		log.Printf("ScrcpyDriver: Unhandled event type: %T", event)
+	}
+
 	return nil
 }

@@ -434,3 +434,44 @@ func parseBitrate(bitrateStr string) (int, error) {
 
 	return bitrate * multiplier, nil
 }
+
+func (sd *ScrcpyDriver) GetReceivers() (<-chan sdriver.AVBox, <-chan sdriver.AVBox, chan sdriver.Event) {
+	return sd.VideoChan, sd.AudioChan, sd.ControlChan
+}
+
+func (sd *ScrcpyDriver) Start() error {
+	log.Println("ScrcpyDriver: Start called")
+	if sd.videoConn != nil {
+		go sd.convertVideoFrame()
+	}
+	if sd.audioConn != nil {
+		go sd.convertAudioFrame()
+	}
+	if sd.controlConn != nil {
+		go sd.transferControlMsg()
+	}
+	return nil
+}
+
+func (sd *ScrcpyDriver) Capabilities() sdriver.DriverCaps {
+	return sd.capabilities
+}
+
+func (sd *ScrcpyDriver) MediaMeta() sdriver.MediaMeta {
+	return sd.mediaMeta
+}
+
+func (sd *ScrcpyDriver) Stop() {
+	if sd.videoConn != nil {
+		sd.videoConn.Close()
+	}
+	if sd.audioConn != nil {
+		sd.audioConn.Close()
+	}
+	if sd.controlConn != nil {
+		sd.controlConn.Close()
+	}
+	sd.stopLocalServer()
+	sd.cancel()
+	sd.markDead("会话已停止")
+}

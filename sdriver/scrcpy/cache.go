@@ -3,6 +3,7 @@ package scrcpy
 import (
 	"bytes"
 	"log"
+	"time"
 	"webscreen/sdriver"
 )
 
@@ -129,4 +130,25 @@ func (da *ScrcpyDriver) sendWithCachedConfigFrame(PTS uint64, IDRFrame []byte) {
 	// }
 
 	da.VideoChan <- sdriver.AVBox{Data: merged_data, PTS: PTS, NoDuration: false}
+}
+
+func (sd *ScrcpyDriver) RequestIDR(firstFrame bool) {
+	if len(sd.LastSPS) == 0 && len(sd.LastPPS) == 0 && len(sd.LastVPS) == 0 && len(sd.LastIDR) == 0 {
+		sd.KeyFrameRequest()
+		return
+	}
+
+	if firstFrame {
+		log.Println("First frame IDR request, sending cached key frame")
+		sd.sendCachedKeyFrame()
+		sd.KeyFrameRequest()
+		return
+	} else if time.Since(sd.LastIDRRequestTime) < 2*time.Second {
+		// log.Printf("last IDR time request was %.1f seconds ago, sending cached key frame", time.Since(sd.LastIDRRequestTime).Seconds())
+		sd.sendCachedKeyFrame()
+		return
+	}
+
+	sd.KeyFrameRequest()
+
 }
